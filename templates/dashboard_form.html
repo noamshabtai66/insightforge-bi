@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}New Dashboard — InsightForge BI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>New Dashboard</h1>
+  <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">&#8592; Back</a>
+</div>
+<div class="form-card">
+  <form method="POST" action="{{ url_for('new_dashboard') }}">
+    <div class="form-group">
+      <label for="name">Dashboard Name *</label>
+      <input type="text" id="name" name="name" class="form-control"
+             placeholder="e.g. Sales Overview Q1" required />
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" class="form-control" rows="3"
+                placeholder="Optional description"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create Dashboard</button>
+      <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}InsightForge BI{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+</head>
+<body>
+  {% if session.get('user_id') %}
+  <nav class="navbar">
+    <div class="nav-brand">
+      <a href="{{ url_for('index') }}">&#9670; InsightForge</a>
+    </div>
+    <ul class="nav-links">
+      <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Overview</a></li>
+      <li><a href="{{ url_for('dashboards') }}" {% if 'dashboard' in request.endpoint %}class="active"{% endif %}>Dashboards</a></li>
+      <li><a href="{{ url_for('data_sources') }}" {% if 'data_source' in request.endpoint %}class="active"{% endif %}>Data Sources</a></li>
+      <li><a href="{{ url_for('reports') }}" {% if 'report' in request.endpoint %}class="active"{% endif %}>Reports</a></li>
+    </ul>
+    <div class="nav-user">
+      <span>{{ session.get('username') }}</span>
+      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+    </div>
+  </nav>
+  {% endif %}
+
+  <main class="main-content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

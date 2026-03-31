@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Overview — InsightForge BI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Overview</h1>
+  <p class="text-muted">Welcome back, <strong>{{ user.username }}</strong></p>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid" id="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-blue">&#128200;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="kpi-revenue">—</div>
+      <div class="kpi-label">Total Revenue</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-green">&#128717;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="kpi-sales">—</div>
+      <div class="kpi-label">Total Sales</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-purple">&#128100;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="kpi-customers">—</div>
+      <div class="kpi-label">Customers</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-orange">&#128722;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="kpi-avg-order">—</div>
+      <div class="kpi-label">Avg Order Value</div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="charts-grid">
+  <div class="chart-card chart-wide">
+    <div class="chart-header">
+      <h3>Monthly Revenue</h3>
+      <span class="badge badge-info">Last 12 months</span>
+    </div>
+    <canvas id="salesChart" height="100"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3>Revenue by Region</h3>
+    </div>
+    <canvas id="regionChart" height="160"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3>Sales by Category</h3>
+    </div>
+    <canvas id="categoryChart" height="160"></canvas>
+  </div>
+  <div class="chart-card chart-wide">
+    <div class="chart-header">
+      <h3>Top 10 Products by Revenue</h3>
+    </div>
+    <canvas id="productsChart" height="120"></canvas>
+  </div>
+</div>
+
+<!-- Recent activity -->
+<div class="two-col-grid">
+  <div class="list-card">
+    <div class="list-card-header">
+      <h3>Recent Dashboards</h3>
+      <a href="{{ url_for('new_dashboard') }}" class="btn btn-sm btn-primary">+ New</a>
+    </div>
+    {% if dashboards %}
+      <ul class="item-list">
+        {% for d in dashboards %}
+          <li>
+            <a href="{{ url_for('view_dashboard', dashboard_id=d.id) }}">{{ d.name }}</a>
+            <span class="text-muted text-sm">{{ d.created_at.strftime('%b %d') }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state">No dashboards yet. <a href="{{ url_for('new_dashboard') }}">Create one</a>.</p>
+    {% endif %}
+  </div>
+
+  <div class="list-card">
+    <div class="list-card-header">
+      <h3>Recent Reports</h3>
+      <a href="{{ url_for('new_report') }}" class="btn btn-sm btn-primary">+ New</a>
+    </div>
+    {% if reports %}
+      <ul class="item-list">
+        {% for r in reports %}
+          <li>
+            <span>{{ r.name }}</span>
+            <span class="text-muted text-sm">{{ r.created_at.strftime('%b %d') }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty-state">No reports yet. <a href="{{ url_for('new_report') }}">Create one</a>.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+{% endblock %}

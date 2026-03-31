@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Reports — InsightForge BI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Reports</h1>
+  <a href="{{ url_for('new_report') }}" class="btn btn-primary">+ New Report</a>
+</div>
+
+{% if reports %}
+  <div class="card-grid">
+    {% for r in reports %}
+      <div class="item-card">
+        <div class="item-card-header">
+          <h3>{{ r.name }}</h3>
+        </div>
+        {% if r.description %}
+          <p class="text-muted">{{ r.description }}</p>
+        {% else %}
+          <p class="text-muted text-sm">No description</p>
+        {% endif %}
+        <div class="item-card-footer">
+          <span class="text-muted text-sm">Created {{ r.created_at.strftime('%b %d, %Y') }}</span>
+          <form method="POST" action="{{ url_for('delete_report', report_id=r.id) }}"
+                onsubmit="return confirm('Delete this report?')" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-page">
+    <p>No reports yet.</p>
+    <a href="{{ url_for('new_report') }}" class="btn btn-primary">Create your first report</a>
+  </div>
+{% endif %}
+{% endblock %}

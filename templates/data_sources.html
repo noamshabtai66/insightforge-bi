@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Data Sources — InsightForge BI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Data Sources</h1>
+  <a href="{{ url_for('new_data_source') }}" class="btn btn-primary">+ New Source</a>
+</div>
+
+{% if sources %}
+  <div class="table-card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Connection</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sources %}
+          <tr>
+            <td><strong>{{ s.name }}</strong></td>
+            <td><span class="badge badge-type">{{ s.data_type }}</span></td>
+            <td class="text-muted text-sm">{{ s.connection_string or '—' }}</td>
+            <td class="text-muted text-sm">{{ s.created_at.strftime('%b %d, %Y') }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('delete_data_source', source_id=s.id) }}"
+                    onsubmit="return confirm('Delete this data source?')" style="display:inline">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-page">
+    <p>No data sources configured.</p>
+    <a href="{{ url_for('new_data_source') }}" class="btn btn-primary">Add your first data source</a>
+  </div>
+{% endif %}
+{% endblock %}
