@@ -23,7 +23,11 @@
           <tr>
             <td><strong>{{ s.name }}</strong></td>
             <td><span class="badge badge-type">{{ s.data_type }}</span></td>
-            <td class="text-muted text-sm">{{ s.connection_string or '—' }}</td>
+            <td class="text-muted text-sm">
+              {%- if s.connection_string -%}
+                {{ s.connection_string[:20] }}{% if s.connection_string|length > 20 %}…{% endif %}
+              {%- else -%}—{%- endif -%}
+            </td>
             <td class="text-muted text-sm">{{ s.created_at.strftime('%b %d, %Y') }}</td>
             <td>
               <form method="POST" action="{{ url_for('delete_data_source', source_id=s.id) }}"

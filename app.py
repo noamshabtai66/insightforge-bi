@@ -21,8 +21,36 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 'sqlite:///insightforge.db'
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 db.init_app(app)
+
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Error handlers
+# ---------------------------------------------------------------------------
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', code=404, message='Page not found.'), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template('error.html', code=500, message='Internal server error.'), 500
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +62,12 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
+            return redirect(url_for('login'))
+        # Guard against stale session (user deleted after login)
+        user = db.session.get(User, session['user_id'])
+        if user is None:
+            session.clear()
+            flash('Your session has expired. Please log in again.', 'warning')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
@@ -281,6 +315,14 @@ def new_report():
     return render_template('report_form.html', user=user)
 
 
+@app.route('/reports/<int:report_id>')
+@login_required
+def view_report(report_id):
+    user = current_user()
+    report = Report.query.filter_by(id=report_id, user_id=user.id).first_or_404()
+    return render_template('report_view.html', user=user, report=report)
+
+
 @app.route('/reports/<int:report_id>/delete', methods=['POST'])
 @login_required
 def delete_report(report_id):
@@ -416,4 +458,5 @@ def create_tables():
 
 if __name__ == '__main__':
     create_tables()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug, host='0.0.0.0', port=5000)

@@ -11,7 +11,7 @@
     {% for r in reports %}
       <div class="item-card">
         <div class="item-card-header">
-          <h3>{{ r.name }}</h3>
+          <h3><a href="{{ url_for('view_report', report_id=r.id) }}">{{ r.name }}</a></h3>
         </div>
         {% if r.description %}
           <p class="text-muted">{{ r.description }}</p>
@@ -20,10 +20,13 @@
         {% endif %}
         <div class="item-card-footer">
           <span class="text-muted text-sm">Created {{ r.created_at.strftime('%b %d, %Y') }}</span>
-          <form method="POST" action="{{ url_for('delete_report', report_id=r.id) }}"
-                onsubmit="return confirm('Delete this report?')" style="display:inline">
-            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-          </form>
+          <div class="item-actions">
+            <a href="{{ url_for('view_report', report_id=r.id) }}" class="btn btn-sm btn-secondary">Open</a>
+            <form method="POST" action="{{ url_for('delete_report', report_id=r.id) }}"
+                  onsubmit="return confirm('Delete this report?')" style="display:inline">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </div>
         </div>
       </div>
     {% endfor %}

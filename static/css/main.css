@@ -113,7 +113,25 @@ a:hover { text-decoration: underline; }
   margin-bottom: 8px;
   font-size: 13px;
   border-left: 3px solid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
+
+.alert-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.6;
+  color: inherit;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.alert-close:hover { opacity: 1; }
 
 .alert-success { background: rgba(34,197,94,0.1); border-color: var(--success); color: #86efac; }
 .alert-danger  { background: rgba(239,68,68,0.1);  border-color: var(--danger);  color: #fca5a5; }

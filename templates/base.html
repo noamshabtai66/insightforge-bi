@@ -14,9 +14,9 @@
     </div>
     <ul class="nav-links">
       <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Overview</a></li>
-      <li><a href="{{ url_for('dashboards') }}" {% if 'dashboard' in request.endpoint %}class="active"{% endif %}>Dashboards</a></li>
-      <li><a href="{{ url_for('data_sources') }}" {% if 'data_source' in request.endpoint %}class="active"{% endif %}>Data Sources</a></li>
-      <li><a href="{{ url_for('reports') }}" {% if 'report' in request.endpoint %}class="active"{% endif %}>Reports</a></li>
+      <li><a href="{{ url_for('dashboards') }}" {% if request.endpoint and 'dashboard' in request.endpoint %}class="active"{% endif %}>Dashboards</a></li>
+      <li><a href="{{ url_for('data_sources') }}" {% if request.endpoint and 'data_source' in request.endpoint %}class="active"{% endif %}>Data Sources</a></li>
+      <li><a href="{{ url_for('reports') }}" {% if request.endpoint and 'report' in request.endpoint %}class="active"{% endif %}>Reports</a></li>
     </ul>
     <div class="nav-user">
       <span>{{ session.get('username') }}</span>

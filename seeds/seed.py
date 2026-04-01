@@ -59,7 +59,10 @@ def create_sample_data():
     db.session.flush()
 
     print("Seeding sales (5 000 records)...")
-    start_date = datetime(2021, 1, 1)
+    # Spread sales over the past 2 years so recent-months charts always show data
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=730)
+    date_range_days = (end_date - start_date).days
     for _ in range(5000):
         product = random.choice(products)
         quantity = random.randint(1, 5)
@@ -68,7 +71,7 @@ def create_sample_data():
             product_id=product.id,
             quantity=quantity,
             total_amount=round(product.price * quantity, 2),
-            sale_date=start_date + timedelta(days=random.randint(0, 730)),
+            sale_date=start_date + timedelta(days=random.randint(0, date_range_days)),
         )
         db.session.add(sale)
 
@@ -84,12 +87,13 @@ def create_sample_data():
 
     print("Seeding revenue targets...")
     db.session.flush()  # ensure region IDs are available
+    current_year = datetime.utcnow().year
     for region in Region.query.all():
         for quarter in range(1, 5):
             t = RevenueTarget(
                 region_id=region.id,
                 quarter=quarter,
-                year=2024,
+                year=current_year,
                 target_amount=random.randint(500000, 2000000),
             )
             db.session.add(t)

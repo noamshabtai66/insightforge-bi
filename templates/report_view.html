@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}{{ report.name }} — InsightForge BI{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ report.name }}</h1>
+    {% if report.description %}
+      <p class="text-muted">{{ report.description }}</p>
+    {% endif %}
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('reports') }}" class="btn btn-secondary">&#8592; Back</a>
+    <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}"
+          onsubmit="return confirm('Delete this report?')" style="display:inline">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
+</div>
+
+<div class="form-card" style="max-width: 100%;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div>
+      <div class="text-muted text-sm" style="margin-bottom: 4px;">Created</div>
+      <div>{{ report.created_at.strftime('%B %d, %Y at %H:%M') }}</div>
+    </div>
+    <div>
+      <div class="text-muted text-sm" style="margin-bottom: 4px;">Owner</div>
+      <div>{{ user.username }}</div>
+    </div>
+  </div>
+
+  <div class="empty-page" style="padding: 40px 0;">
+    <p class="text-muted">Report builder coming soon.</p>
+    <p class="text-muted text-sm">Future versions will allow you to build custom queries and export to CSV/PDF.</p>
+  </div>
+</div>
+{% endblock %}
