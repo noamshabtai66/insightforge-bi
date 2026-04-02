@@ -1,7 +1,14 @@
 import os
+import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from flask import (
     Flask, redirect, url_for, session, request,
@@ -16,7 +23,10 @@ from models.models import (
 )
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+_secret = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+if _secret == 'dev-secret-change-in-production':
+    print('WARNING: Using default SECRET_KEY. Set the SECRET_KEY environment variable in production.', file=sys.stderr)
+app.config['SECRET_KEY'] = _secret
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 'sqlite:///insightforge.db'
 )
@@ -36,6 +46,14 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'"
+    )
     return response
 
 
@@ -158,7 +176,7 @@ def index():
     total_products = Product.query.count()
 
     # Recent sales (last 30 days)
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     recent_sales = Sale.query.filter(Sale.sale_date >= thirty_days_ago).count()
 
     # Top 5 products by revenue
@@ -210,6 +228,9 @@ def new_dashboard():
         if not name:
             flash('Dashboard name is required.', 'danger')
             return render_template('dashboard_form.html', user=user)
+        if len(name) > 120:
+            flash('Name must be 120 characters or fewer.', 'danger')
+            return render_template('dashboard_form.html', user=user)
         dashboard = Dashboard(name=name, description=description, user_id=user.id)
         db.session.add(dashboard)
         db.session.commit()
@@ -254,12 +275,19 @@ def data_sources():
 @login_required
 def new_data_source():
     user = current_user()
+    ALLOWED_TYPES = {'csv', 'database', 'api', 'excel'}
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         data_type = request.form.get('data_type', '').strip()
         connection_string = request.form.get('connection_string', '').strip()
         if not name or not data_type:
             flash('Name and type are required.', 'danger')
+            return render_template('data_source_form.html', user=user)
+        if len(name) > 120:
+            flash('Name must be 120 characters or fewer.', 'danger')
+            return render_template('data_source_form.html', user=user)
+        if data_type not in ALLOWED_TYPES:
+            flash('Invalid data source type.', 'danger')
             return render_template('data_source_form.html', user=user)
         source = DataSource(
             name=name,
@@ -307,6 +335,9 @@ def new_report():
         if not name:
             flash('Report name is required.', 'danger')
             return render_template('report_form.html', user=user)
+        if len(name) > 120:
+            flash('Name must be 120 characters or fewer.', 'danger')
+            return render_template('report_form.html', user=user)
         report = Report(name=name, description=description, user_id=user.id)
         db.session.add(report)
         db.session.commit()
@@ -342,7 +373,7 @@ def delete_report(report_id):
 @login_required
 def api_sales_overview():
     """Monthly sales totals for the past 12 months."""
-    twelve_months_ago = datetime.utcnow() - timedelta(days=365)
+    twelve_months_ago = datetime.now(timezone.utc) - timedelta(days=365)
     rows = (
         db.session.query(
             func.strftime('%Y-%m', Sale.sale_date).label('month'),
@@ -425,7 +456,7 @@ def api_kpis():
     total_products = Product.query.count()
     avg_order = total_revenue / total_sales if total_sales else 0
 
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     recent_revenue = db.session.query(func.sum(Sale.total_amount)).filter(
         Sale.sale_date >= thirty_days_ago
     ).scalar() or 0

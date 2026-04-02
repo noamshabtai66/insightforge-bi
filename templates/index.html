@@ -101,7 +101,7 @@
       <ul class="item-list">
         {% for r in reports %}
           <li>
-            <span>{{ r.name }}</span>
+            <a href="{{ url_for('view_report', report_id=r.id) }}">{{ r.name }}</a>
             <span class="text-muted text-sm">{{ r.created_at.strftime('%b %d') }}</span>
           </li>
         {% endfor %}
@@ -111,6 +111,23 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Top Products -->
+{% if top_products %}
+<div class="list-card" style="margin-bottom: 24px;">
+  <div class="list-card-header">
+    <h3>Top 5 Products by Revenue</h3>
+  </div>
+  <ul class="item-list">
+    {% for name, revenue in top_products %}
+      <li>
+        <span>{{ name }}</span>
+        <span class="text-muted text-sm">${{ '{:,.2f}'.format(revenue) }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

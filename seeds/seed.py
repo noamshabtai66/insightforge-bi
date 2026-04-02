@@ -7,7 +7,7 @@ Run from the project root:
 import random
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Ensure project root is on the path when run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,7 +60,7 @@ def create_sample_data():
 
     print("Seeding sales (5 000 records)...")
     # Spread sales over the past 2 years so recent-months charts always show data
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=730)
     date_range_days = (end_date - start_date).days
     for _ in range(5000):
@@ -87,7 +87,7 @@ def create_sample_data():
 
     print("Seeding revenue targets...")
     db.session.flush()  # ensure region IDs are available
-    current_year = datetime.utcnow().year
+    current_year = datetime.now(timezone.utc).year
     for region in Region.query.all():
         for quarter in range(1, 5):
             t = RevenueTarget(
