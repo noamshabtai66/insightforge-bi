@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -12,20 +13,27 @@ except ImportError:
 
 from flask import (
     Flask, redirect, url_for, session, request,
-    render_template, flash, jsonify
+    render_template, flash, jsonify, g
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
+
+logger = logging.getLogger(__name__)
 
 from models.models import (
     db, User, DataSource, Dashboard, Widget, Report,
     Region, Product, Customer, Sale, Employee, RevenueTarget
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+)
+
 app = Flask(__name__)
 _secret = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 if _secret == 'dev-secret-change-in-production':
-    print('WARNING: Using default SECRET_KEY. Set the SECRET_KEY environment variable in production.', file=sys.stderr)
+    logger.warning('Using default SECRET_KEY. Set the SECRET_KEY environment variable in production.')
 app.config['SECRET_KEY'] = _secret
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 'sqlite:///insightforge.db'
@@ -33,6 +41,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Enable Secure flag in production (HTTPS); keep off for local HTTP dev
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 
 db.init_app(app)
 
@@ -53,6 +63,9 @@ def add_security_headers(response):
         "img-src 'self' data:; "
         "font-src 'self'; "
         "connect-src 'self'"
+    )
+    response.headers['Permissions-Policy'] = (
+        'camera=(), microphone=(), geolocation=(), payment=()'
     )
     return response
 
@@ -81,17 +94,23 @@ def login_required(f):
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
             return redirect(url_for('login'))
-        # Guard against stale session (user deleted after login)
-        user = db.session.get(User, session['user_id'])
-        if user is None:
-            session.clear()
-            flash('Your session has expired. Please log in again.', 'warning')
-            return redirect(url_for('login'))
+        # Guard against stale session (user deleted after login).
+        # Cache in g so current_user() avoids a second DB round-trip.
+        if not hasattr(g, 'current_user'):
+            user = db.session.get(User, session['user_id'])
+            if user is None:
+                session.clear()
+                flash('Your session has expired. Please log in again.', 'warning')
+                return redirect(url_for('login'))
+            g.current_user = user
         return f(*args, **kwargs)
     return decorated
 
 
 def current_user():
+    """Return the logged-in User, using the g-cache set by login_required."""
+    if hasattr(g, 'current_user'):
+        return g.current_user
     if 'user_id' in session:
         return db.session.get(User, session['user_id'])
     return None
@@ -342,7 +361,7 @@ def new_report():
         db.session.add(report)
         db.session.commit()
         flash(f'Report "{name}" created.', 'success')
-        return redirect(url_for('reports'))
+        return redirect(url_for('view_report', report_id=report.id))
     return render_template('report_form.html', user=user)
 
 
@@ -484,7 +503,7 @@ def create_tables():
             admin.set_password('admin123')
             db.session.add(admin)
             db.session.commit()
-            print('Default admin user created: admin / admin123')
+            logger.info('Default admin user created: admin / admin123')
 
 
 if __name__ == '__main__':

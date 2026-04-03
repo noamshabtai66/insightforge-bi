@@ -477,10 +477,65 @@ select.form-control { cursor: pointer; }
 
 .widget-header h4 { font-size: 13px; font-weight: 600; }
 
+/* ── Hamburger button (hidden on desktop) ────────────────── */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.nav-hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.nav-hamburger:hover span { background: var(--text); }
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 768px) {
   .chart-wide { grid-column: span 1; }
-  .navbar { padding: 0 16px; }
-  .nav-links { display: none; }
   .main-content { padding: 16px; }
+
+  .navbar {
+    padding: 0 16px;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    row-gap: 0;
+  }
+
+  .nav-hamburger { display: flex; }
+
+  .nav-username { display: none; }
+
+  .nav-links {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    order: 3;
+    padding: 8px 0 12px;
+    gap: 2px;
+  }
+
+  .nav-links.open { display: flex; }
+
+  .nav-links li { width: 100%; }
+
+  .nav-links a {
+    display: block;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+  }
 }

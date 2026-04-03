@@ -8,7 +8,13 @@
       <p class="text-muted">{{ dashboard.description }}</p>
     {% endif %}
   </div>
-  <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">&#8592; Back</a>
+  <div style="display:flex; gap:8px;">
+    <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">&#8592; Back</a>
+    <form method="POST" action="{{ url_for('delete_dashboard', dashboard_id=dashboard.id) }}"
+          onsubmit="return confirm('Delete dashboard "{{ dashboard.name }}"?')" style="display:inline">
+      <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+    </form>
+  </div>
 </div>
 
 {% if widgets %}
