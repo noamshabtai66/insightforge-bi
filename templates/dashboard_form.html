@@ -7,6 +7,7 @@
 </div>
 <div class="form-card">
   <form method="POST" action="{{ url_for('new_dashboard') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
     <div class="form-group">
       <label for="name">Dashboard Name *</label>
       <input type="text" id="name" name="name" class="form-control"

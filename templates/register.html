@@ -6,25 +6,28 @@
     <div class="auth-logo">&#9670; InsightForge</div>
     <h2>Create Account</h2>
     <form method="POST" action="{{ url_for('register') }}" novalidate>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
       <div class="form-group">
         <label for="username">Username</label>
         <input type="text" id="username" name="username" class="form-control"
-               placeholder="Choose a username" required autofocus minlength="3" maxlength="80" />
+               placeholder="Choose a username" required autofocus minlength="3" maxlength="80"
+               autocomplete="username" />
       </div>
       <div class="form-group">
         <label for="email">Email <span class="text-muted">(optional)</span></label>
         <input type="email" id="email" name="email" class="form-control"
-               placeholder="you@example.com" maxlength="120" />
+               placeholder="you@example.com" maxlength="120" autocomplete="email" />
       </div>
       <div class="form-group">
         <label for="password">Password</label>
         <input type="password" id="password" name="password" class="form-control"
-               placeholder="At least 6 characters" required minlength="6" />
+               placeholder="At least 6 characters" required minlength="6"
+               autocomplete="new-password" />
       </div>
       <div class="form-group">
         <label for="confirm_password">Confirm Password</label>
         <input type="password" id="confirm_password" name="confirm_password" class="form-control"
-               placeholder="Repeat password" required />
+               placeholder="Repeat password" required autocomplete="new-password" />
       </div>
       <button type="submit" class="btn btn-primary btn-full">Create Account</button>
     </form>

@@ -1,7 +1,12 @@
 import os
+<<<<<<< HEAD
 import sys
 import json
 import logging
+=======
+import logging
+import secrets
+>>>>>>> 53776fc (chore(qa): daily review and fixes — 2026-04-04)
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -74,6 +79,11 @@ def add_security_headers(response):
 # Error handlers
 # ---------------------------------------------------------------------------
 
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('error.html', code=403, message='Access denied.'), 403
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template('error.html', code=404, message='Page not found.'), 404
@@ -82,6 +92,36 @@ def not_found(e):
 @app.errorhandler(500)
 def server_error(e):
     return render_template('error.html', code=500, message='Internal server error.'), 500
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection
+# ---------------------------------------------------------------------------
+
+def get_csrf_token():
+    """Return (and lazily create) a per-session CSRF token."""
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = secrets.token_hex(32)
+    return session['_csrf_token']
+
+
+@app.before_request
+def csrf_protect():
+    """Reject state-changing requests that lack a valid CSRF token."""
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        token = session.get('_csrf_token', '')
+        form_token = request.form.get('_csrf_token', '')
+        if not token or not secrets.compare_digest(token, form_token):
+            logger.warning('CSRF validation failed: %s %s from %s',
+                           request.method, request.path, request.remote_addr)
+            return render_template(
+                'error.html', code=403,
+                message='Invalid or missing security token. Please go back and try again.'
+            ), 403
+
+
+# Make csrf_token() callable from every template without an explicit import.
+app.jinja_env.globals['csrf_token'] = get_csrf_token
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +192,8 @@ def register():
         error = None
         if not username or len(username) < 3:
             error = 'Username must be at least 3 characters.'
+        elif len(username) > 80:
+            error = 'Username must be 80 characters or fewer.'
         elif not password or len(password) < 6:
             error = 'Password must be at least 6 characters.'
         elif password != confirm:

@@ -11,7 +11,10 @@
   <div style="display:flex; gap:8px;">
     <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">&#8592; Back</a>
     <form method="POST" action="{{ url_for('delete_dashboard', dashboard_id=dashboard.id) }}"
-          onsubmit="return confirm('Delete dashboard "{{ dashboard.name }}"?')" style="display:inline">
+          data-name="{{ dashboard.name }}"
+          onsubmit="return confirm('Delete dashboard &quot;' + this.dataset.name + '&quot;?')"
+          style="display:inline">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
     </form>
   </div>

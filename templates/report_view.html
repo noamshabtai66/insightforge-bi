@@ -12,6 +12,7 @@
     <a href="{{ url_for('reports') }}" class="btn btn-secondary">&#8592; Back</a>
     <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}"
           onsubmit="return confirm('Delete this report?')" style="display:inline">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
     </form>
   </div>
