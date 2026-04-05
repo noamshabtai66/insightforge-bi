@@ -399,7 +399,10 @@ select.form-control { cursor: pointer; }
 
 /* ── Auth pages ─────────────────────────────────────────── */
 .auth-page {
+  /* Escape the 28px/24px padding of .main-content so the card
+     truly centres in the full viewport (no navbar on auth pages). */
   min-height: 100vh;
+  margin: -28px -24px;
   display: flex;
   align-items: center;
   justify-content: center;

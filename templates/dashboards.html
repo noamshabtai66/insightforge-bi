@@ -24,7 +24,9 @@
           <div class="item-actions">
             <a href="{{ url_for('view_dashboard', dashboard_id=d.id) }}" class="btn btn-sm btn-secondary">Open</a>
             <form method="POST" action="{{ url_for('delete_dashboard', dashboard_id=d.id) }}"
-                  onsubmit="return confirm('Delete this dashboard?')" style="display:inline">
+                  data-name="{{ d.name }}"
+                  onsubmit="return confirm('Delete dashboard &quot;' + this.dataset.name + '&quot;?')"
+                  style="display:inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>

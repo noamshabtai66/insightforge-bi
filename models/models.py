@@ -104,7 +104,7 @@ class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     category = db.Column(db.String(80), nullable=False)
-    price = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
 
     sales = db.relationship('Sale', backref='product', lazy=True)
 
@@ -132,7 +132,7 @@ class Sale(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
-    total_amount = db.Column(db.Float, nullable=False)
+    total_amount = db.Column(db.Numeric(10, 2), nullable=False)
     sale_date = db.Column(db.DateTime, nullable=False, default=_utcnow)
 
     def __repr__(self):
@@ -144,7 +144,7 @@ class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     department = db.Column(db.String(80), nullable=False)
-    salary = db.Column(db.Float, nullable=False)
+    salary = db.Column(db.Numeric(12, 2), nullable=False)
     hire_date = db.Column(db.DateTime, default=_utcnow)
 
     def __repr__(self):
@@ -157,7 +157,7 @@ class RevenueTarget(db.Model):
     region_id = db.Column(db.Integer, db.ForeignKey('region.id'), nullable=False)
     quarter = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False, default=lambda: datetime.now(timezone.utc).year)
-    target_amount = db.Column(db.Float, nullable=False)
+    target_amount = db.Column(db.Numeric(14, 2), nullable=False)
 
     def __repr__(self):
         return f'<RevenueTarget region={self.region_id} Q{self.quarter}>'

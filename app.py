@@ -1,12 +1,6 @@
 import os
-<<<<<<< HEAD
-import sys
-import json
-import logging
-=======
 import logging
 import secrets
->>>>>>> 53776fc (chore(qa): daily review and fixes — 2026-04-04)
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -448,7 +442,7 @@ def api_sales_overview():
     )
     return jsonify({
         'labels': [r.month for r in rows],
-        'revenue': [round(r.revenue or 0, 2) for r in rows],
+        'revenue': [round(float(r.revenue or 0), 2) for r in rows],
         'count': [r.count for r in rows],
     })
 
@@ -467,7 +461,7 @@ def api_revenue_by_region():
     )
     return jsonify({
         'labels': [r.name for r in rows],
-        'revenue': [round(r.revenue or 0, 2) for r in rows],
+        'revenue': [round(float(r.revenue or 0), 2) for r in rows],
     })
 
 
@@ -485,7 +479,7 @@ def api_top_products():
     )
     return jsonify({
         'labels': [r.name for r in rows],
-        'revenue': [round(r.revenue or 0, 2) for r in rows],
+        'revenue': [round(float(r.revenue or 0), 2) for r in rows],
         'categories': [r.category for r in rows],
     })
 
@@ -503,8 +497,31 @@ def api_sales_by_category():
     )
     return jsonify({
         'labels': [r.category for r in rows],
-        'revenue': [round(r.revenue or 0, 2) for r in rows],
+        'revenue': [round(float(r.revenue or 0), 2) for r in rows],
     })
+
+
+@app.route('/api/revenue-targets')
+@login_required
+def api_revenue_targets():
+    """Quarterly revenue targets per region for the current year."""
+    current_year = datetime.now(timezone.utc).year
+    targets = (
+        db.session.query(
+            Region.name,
+            RevenueTarget.quarter,
+            RevenueTarget.target_amount,
+        )
+        .join(Region, RevenueTarget.region_id == Region.id)
+        .filter(RevenueTarget.year == current_year)
+        .order_by(Region.name, RevenueTarget.quarter)
+        .all()
+    )
+    # Structure: { region: { Q1: target, Q2: target, ... } }
+    result = {}
+    for region_name, quarter, target in targets:
+        result.setdefault(region_name, {})[f'Q{quarter}'] = float(target or 0)
+    return jsonify(result)
 
 
 @app.route('/api/kpis')
@@ -515,7 +532,7 @@ def api_kpis():
     total_sales = Sale.query.count()
     total_customers = Customer.query.count()
     total_products = Product.query.count()
-    avg_order = total_revenue / total_sales if total_sales else 0
+    avg_order = float(total_revenue) / total_sales if total_sales else 0
 
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     recent_revenue = db.session.query(func.sum(Sale.total_amount)).filter(
@@ -523,12 +540,12 @@ def api_kpis():
     ).scalar() or 0
 
     return jsonify({
-        'total_revenue': round(total_revenue, 2),
+        'total_revenue': round(float(total_revenue), 2),
         'total_sales': total_sales,
         'total_customers': total_customers,
         'total_products': total_products,
         'avg_order_value': round(avg_order, 2),
-        'recent_30d_revenue': round(recent_revenue, 2),
+        'recent_30d_revenue': round(float(recent_revenue), 2),
     })
 
 
@@ -541,11 +558,19 @@ def create_tables():
         db.create_all()
         # Create default admin if no users exist
         if not User.query.first():
+            admin_password = os.environ.get('ADMIN_PASSWORD')
+            if not admin_password:
+                admin_password = secrets.token_urlsafe(14)
+                logger.warning(
+                    'ADMIN_PASSWORD env var not set. Generated one-time password: %s  '
+                    '(set ADMIN_PASSWORD to control this)',
+                    admin_password,
+                )
             admin = User(username='admin', email='admin@insightforge.local', is_admin=True)
-            admin.set_password('admin123')
+            admin.set_password(admin_password)
             db.session.add(admin)
             db.session.commit()
-            logger.info('Default admin user created: admin / admin123')
+            logger.info('Default admin user created (username: admin)')
 
 
 if __name__ == '__main__':
