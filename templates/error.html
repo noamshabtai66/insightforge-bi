@@ -2,8 +2,8 @@
 {% block title %}{{ code }} — InsightForge BI{% endblock %}
 {% block content %}
 <div class="empty-page">
-  <div style="font-size: 56px; font-weight: 800; color: var(--primary); margin-bottom: 12px;">{{ code }}</div>
+  <div class="error-code">{{ code }}</div>
   <p>{{ message }}</p>
-  <a href="{{ url_for('index') }}" class="btn btn-primary" style="margin-top: 8px;">Go to Overview</a>
+  <a href="{{ url_for('index') }}" class="btn btn-primary mt-8">Go to Overview</a>
 </div>
 {% endblock %}

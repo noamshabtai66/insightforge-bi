@@ -4,6 +4,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -45,6 +48,13 @@ app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'f
 
 db.init_app(app)
 
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    storage_uri='memory://',
+    default_limits=[],  # no global limit; apply per-route only
+)
+
 
 # ---------------------------------------------------------------------------
 # Security headers
@@ -58,7 +68,7 @@ def add_security_headers(response):
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline'; "
+        "style-src 'self'; "
         "img-src 'self' data:; "
         "font-src 'self'; "
         "connect-src 'self'"
@@ -73,11 +83,17 @@ def add_security_headers(response):
 # Error handlers
 # ---------------------------------------------------------------------------
 
+@app.errorhandler(429)
+def rate_limited(e):
+    return render_template(
+        'error.html', code=429,
+        message='Too many requests. Please wait a moment and try again.'
+    ), 429
+
+
 @app.errorhandler(403)
 def forbidden(e):
     return render_template('error.html', code=403, message='Access denied.'), 403
-
-
 @app.errorhandler(404)
 def not_found(e):
     return render_template('error.html', code=404, message='Page not found.'), 404
@@ -155,6 +171,7 @@ def current_user():
 # ---------------------------------------------------------------------------
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit('20 per minute; 100 per hour', methods=['POST'])
 def login():
     if 'user_id' in session:
         return redirect(url_for('index'))
@@ -175,6 +192,7 @@ def login():
 
 
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit('10 per minute; 30 per hour', methods=['POST'])
 def register():
     if 'user_id' in session:
         return redirect(url_for('index'))
@@ -258,6 +276,7 @@ def index():
         top_products=top_products,
         dashboards=dashboards,
         reports=reports,
+        now=datetime.now(timezone.utc),
     )
 
 
@@ -524,6 +543,27 @@ def api_revenue_targets():
     return jsonify(result)
 
 
+@app.route('/api/employee-stats')
+@login_required
+def api_employee_stats():
+    """Headcount and average salary per department."""
+    rows = (
+        db.session.query(
+            Employee.department,
+            func.count(Employee.id).label('headcount'),
+            func.avg(Employee.salary).label('avg_salary'),
+            func.sum(Employee.salary).label('total_salary'),
+        )
+        .group_by(Employee.department)
+        .order_by(Employee.department)
+        .all()
+    )
+    return jsonify({
+        'departments': [r.department for r in rows],
+        'headcount': [r.headcount for r in rows],
+        'avg_salary': [round(float(r.avg_salary or 0), 2) for r in rows],
+        'total_salary': [round(float(r.total_salary or 0), 2) for r in rows],
+    })
 @app.route('/api/kpis')
 @login_required
 def api_kpis():

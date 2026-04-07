@@ -71,6 +71,17 @@
   </div>
 </div>
 
+<!-- Revenue Targets -->
+<div class="charts-grid mb-24">
+  <div class="chart-card chart-wide">
+    <div class="chart-header">
+      <h3>Quarterly Revenue Targets by Region</h3>
+      <span class="badge badge-info">{{ now.year }}</span>
+    </div>
+    <canvas id="targetsChart" height="90"></canvas>
+  </div>
+</div>
+
 <!-- Recent activity -->
 <div class="two-col-grid">
   <div class="list-card">
@@ -114,7 +125,7 @@
 
 <!-- Top Products -->
 {% if top_products %}
-<div class="list-card" style="margin-bottom: 24px;">
+<div class="list-card mb-24">
   <div class="list-card-header">
     <h3>Top 5 Products by Revenue</h3>
   </div>

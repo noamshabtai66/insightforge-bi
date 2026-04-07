@@ -226,10 +226,64 @@ async function initProductsChart() {
   }
 }
 
+// Quarterly revenue targets grouped bar chart
+async function initRevenueTargetsChart() {
+  const ctx = document.getElementById('targetsChart');
+  if (!ctx) return;
+  try {
+    const res = await fetch('/api/revenue-targets');
+    if (!res.ok) return;
+    const data = await res.json();
+    const regions = Object.keys(data);
+    if (!regions.length) return;
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+    const datasets = regions.map((region, i) => ({
+      label: region,
+      data: quarters.map((q) => data[region][q] || 0),
+      backgroundColor: COLORS[i % COLORS.length] + 'aa',
+      borderColor: COLORS[i % COLORS.length],
+      borderWidth: 1,
+    }));
+    new Chart(ctx, {
+      type: 'bar',
+      data: { labels: quarters, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { labels: { color: '#7c87a0', font: { size: 11 } } },
+          tooltip: {
+            backgroundColor: '#1a1d27',
+            borderColor: '#2d3250',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#7c87a0',
+            callbacks: { label: (ctx) => ` ${ctx.dataset.label}: $${Number(ctx.raw).toLocaleString()}` },
+          },
+        },
+        scales: {
+          x: { ticks: { color: '#7c87a0', font: { size: 11 } }, grid: { color: 'rgba(45,50,80,0.6)' } },
+          y: {
+            ticks: {
+              color: '#7c87a0',
+              font: { size: 11 },
+              callback: (v) => '$' + Number(v / 1_000_000).toFixed(1) + 'M',
+            },
+            grid: { color: 'rgba(45,50,80,0.6)' },
+          },
+        },
+      },
+    });
+  } catch (e) {
+    console.warn('Revenue targets chart failed', e);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadKPIs();
   initSalesChart();
   initRegionChart();
   initCategoryChart();
   initProductsChart();
+  initRevenueTargetsChart();
 });
