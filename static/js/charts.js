@@ -5,39 +5,58 @@ const COLORS = [
   '#a78bfa', '#34d399', '#fb923c', '#60a5fa', '#f472b6',
 ];
 
-const CHART_DEFAULTS = {
-  responsive: true,
-  maintainAspectRatio: true,
-  plugins: {
-    legend: {
-      labels: { color: '#7c87a0', font: { size: 11 } },
-    },
-    tooltip: {
-      backgroundColor: '#1a1d27',
-      borderColor: '#2d3250',
-      borderWidth: 1,
-      titleColor: '#e2e8f0',
-      bodyColor: '#7c87a0',
-      callbacks: {
-        label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}`,
+/**
+ * Return a fresh chart-defaults object for cartesian (bar/line) charts.
+ * Using a factory instead of a shared constant avoids Chart.js mutating
+ * nested objects and affecting other chart instances.
+ */
+function getChartDefaults() {
+  return {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: {
+        labels: { color: '#7c87a0', font: { size: 11 } },
+      },
+      tooltip: {
+        backgroundColor: '#1a1d27',
+        borderColor: '#2d3250',
+        borderWidth: 1,
+        titleColor: '#e2e8f0',
+        bodyColor: '#7c87a0',
+        callbacks: {
+          label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}`,
+        },
       },
     },
-  },
-  scales: {
-    x: {
-      ticks: { color: '#7c87a0', font: { size: 11 } },
-      grid: { color: 'rgba(45,50,80,0.6)' },
-    },
-    y: {
-      ticks: {
-        color: '#7c87a0',
-        font: { size: 11 },
-        callback: (v) => '$' + Number(v).toLocaleString(),
+    scales: {
+      x: {
+        ticks: { color: '#7c87a0', font: { size: 11 } },
+        grid: { color: 'rgba(45,50,80,0.6)' },
       },
-      grid: { color: 'rgba(45,50,80,0.6)' },
+      y: {
+        ticks: {
+          color: '#7c87a0',
+          font: { size: 11 },
+          callback: (v) => '$' + Number(v).toLocaleString(),
+        },
+        grid: { color: 'rgba(45,50,80,0.6)' },
+      },
     },
-  },
-};
+  };
+}
+
+/** Shared tooltip config for circular (pie/doughnut) charts. */
+function getCircularTooltip() {
+  return {
+    backgroundColor: '#1a1d27',
+    borderColor: '#2d3250',
+    borderWidth: 1,
+    titleColor: '#e2e8f0',
+    bodyColor: '#7c87a0',
+    callbacks: { label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}` },
+  };
+}
 
 function fmtCurrency(val) {
   if (val >= 1_000_000) return '$' + (val / 1_000_000).toFixed(1) + 'M';
@@ -83,7 +102,7 @@ async function initSalesChart() {
           pointHoverRadius: 5,
         }],
       },
-      options: { ...CHART_DEFAULTS },
+      options: getChartDefaults(),
     });
   } catch (e) {
     console.warn('Sales chart failed', e);
@@ -114,14 +133,7 @@ async function initRegionChart() {
         maintainAspectRatio: true,
         plugins: {
           legend: { position: 'right', labels: { color: '#7c87a0', font: { size: 11 } } },
-          tooltip: {
-            backgroundColor: '#1a1d27',
-            borderColor: '#2d3250',
-            borderWidth: 1,
-            titleColor: '#e2e8f0',
-            bodyColor: '#7c87a0',
-            callbacks: { label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}` },
-          },
+          tooltip: getCircularTooltip(),
         },
       },
     });
@@ -154,14 +166,7 @@ async function initCategoryChart() {
         maintainAspectRatio: true,
         plugins: {
           legend: { position: 'right', labels: { color: '#7c87a0', font: { size: 11 } } },
-          tooltip: {
-            backgroundColor: '#1a1d27',
-            borderColor: '#2d3250',
-            borderWidth: 1,
-            titleColor: '#e2e8f0',
-            bodyColor: '#7c87a0',
-            callbacks: { label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}` },
-          },
+          tooltip: getCircularTooltip(),
         },
       },
     });
@@ -196,14 +201,7 @@ async function initProductsChart() {
         maintainAspectRatio: true,
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: '#1a1d27',
-            borderColor: '#2d3250',
-            borderWidth: 1,
-            titleColor: '#e2e8f0',
-            bodyColor: '#7c87a0',
-            callbacks: { label: (ctx) => ` $${Number(ctx.raw).toLocaleString()}` },
-          },
+          tooltip: getCircularTooltip(),
         },
         scales: {
           x: {

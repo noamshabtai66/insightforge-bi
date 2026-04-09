@@ -38,7 +38,7 @@ class DataSource(db.Model):
     name = db.Column(db.String(120), nullable=False)
     data_type = db.Column(db.String(50), nullable=False)  # csv, database, api
     connection_string = db.Column(db.Text, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     def __repr__(self):
@@ -50,7 +50,7 @@ class Dashboard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     widgets = db.relationship('Widget', backref='dashboard', lazy=True, cascade='all, delete-orphan')
@@ -78,7 +78,7 @@ class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     config = db.Column(db.Text, nullable=True)  # JSON config
     created_at = db.Column(db.DateTime, default=_utcnow)
 
@@ -117,7 +117,7 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    region_id = db.Column(db.Integer, db.ForeignKey('region.id'), nullable=True)
+    region_id = db.Column(db.Integer, db.ForeignKey('region.id'), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     sales = db.relationship('Sale', backref='customer', lazy=True)
@@ -129,11 +129,11 @@ class Customer(db.Model):
 class Sale(db.Model):
     __tablename__ = 'sale'
     id = db.Column(db.Integer, primary_key=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
-    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False, index=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False, index=True)
     quantity = db.Column(db.Integer, nullable=False, default=1)
     total_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    sale_date = db.Column(db.DateTime, nullable=False, default=_utcnow)
+    sale_date = db.Column(db.DateTime, nullable=False, default=_utcnow, index=True)
 
     def __repr__(self):
         return f'<Sale {self.id}>'

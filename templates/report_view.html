@@ -8,7 +8,7 @@
       <p class="text-muted">{{ report.description }}</p>
     {% endif %}
   </div>
-  <div style="display:flex; gap:8px;">
+  <div class="flex-row-gap">
     <a href="{{ url_for('reports') }}" class="btn btn-secondary">&#8592; Back</a>
     <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}"
           data-name="{{ report.name }}"
@@ -20,19 +20,19 @@
   </div>
 </div>
 
-<div class="form-card" style="max-width: 100%;">
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+<div class="form-card full-width">
+  <div class="meta-grid">
     <div>
-      <div class="text-muted text-sm" style="margin-bottom: 4px;">Created</div>
+      <div class="meta-label">Created</div>
       <div>{{ report.created_at.strftime('%B %d, %Y at %H:%M') }}</div>
     </div>
     <div>
-      <div class="text-muted text-sm" style="margin-bottom: 4px;">Owner</div>
+      <div class="meta-label">Owner</div>
       <div>{{ user.username }}</div>
     </div>
   </div>
 
-  <div class="empty-page" style="padding: 40px 0;">
+  <div class="empty-page-sm">
     <p class="text-muted">Report builder coming soon.</p>
     <p class="text-muted text-sm">Future versions will allow you to build custom queries and export to CSV/PDF.</p>
   </div>

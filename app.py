@@ -94,9 +94,16 @@ def rate_limited(e):
 @app.errorhandler(403)
 def forbidden(e):
     return render_template('error.html', code=403, message='Access denied.'), 403
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template('error.html', code=404, message='Page not found.'), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return render_template('error.html', code=405, message='Method not allowed.'), 405
 
 
 @app.errorhandler(500)
@@ -446,7 +453,11 @@ def delete_report(report_id):
 @app.route('/api/sales-overview')
 @login_required
 def api_sales_overview():
-    """Monthly sales totals for the past 12 months."""
+    """Monthly sales totals for the past 12 months.
+
+    NOTE: func.strftime is SQLite-specific. If switching to PostgreSQL,
+    replace with func.to_char(Sale.sale_date, 'YYYY-MM').
+    """
     twelve_months_ago = datetime.now(timezone.utc) - timedelta(days=365)
     rows = (
         db.session.query(
@@ -564,6 +575,8 @@ def api_employee_stats():
         'avg_salary': [round(float(r.avg_salary or 0), 2) for r in rows],
         'total_salary': [round(float(r.total_salary or 0), 2) for r in rows],
     })
+
+
 @app.route('/api/kpis')
 @login_required
 def api_kpis():
@@ -594,9 +607,16 @@ def api_kpis():
 # ---------------------------------------------------------------------------
 
 def create_tables():
+    """Create DB tables and seed the default admin account.
+
+    Called at module load so the app is ready whether started via
+    ``python app.py`` or a WSGI server such as gunicorn.
+    """
     with app.app_context():
         db.create_all()
-        # Create default admin if no users exist
+        # Create default admin if no users exist.
+        # The try/except guards against a rare race condition when multiple
+        # worker processes start simultaneously and both attempt the INSERT.
         if not User.query.first():
             admin_password = os.environ.get('ADMIN_PASSWORD')
             if not admin_password:
@@ -609,11 +629,18 @@ def create_tables():
             admin = User(username='admin', email='admin@insightforge.local', is_admin=True)
             admin.set_password(admin_password)
             db.session.add(admin)
-            db.session.commit()
-            logger.info('Default admin user created (username: admin)')
+            try:
+                db.session.commit()
+                logger.info('Default admin user created (username: admin)')
+            except Exception:
+                db.session.rollback()
+                logger.info('Admin user already exists (concurrent startup); skipping.')
+
+
+# Run at module load so tables exist for both `python app.py` and WSGI servers.
+create_tables()
 
 
 if __name__ == '__main__':
-    create_tables()
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     app.run(debug=debug, host='0.0.0.0', port=5000)
