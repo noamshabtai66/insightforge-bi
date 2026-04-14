@@ -23,7 +23,7 @@
           <div class="item-actions">
             <a href="{{ url_for('view_report', report_id=r.id) }}" class="btn btn-sm btn-secondary">Open</a>
             <form method="POST" action="{{ url_for('delete_report', report_id=r.id) }}"
-                  onsubmit="return confirm('Delete this report?')" style="display:inline">
+                  onsubmit="return confirm('Delete this report?')" class="form-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>

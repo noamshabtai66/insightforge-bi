@@ -13,10 +13,13 @@ try:
 except ImportError:
     pass
 
+import re
+
 from flask import (
     Flask, redirect, url_for, session, request,
     render_template, flash, jsonify, g
 )
+from urllib.parse import urlparse
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 
@@ -108,6 +111,7 @@ def method_not_allowed(e):
 
 @app.errorhandler(500)
 def server_error(e):
+    logger.exception('Unhandled server error: %s', e)
     return render_template('error.html', code=500, message='Internal server error.'), 500
 
 
@@ -150,7 +154,7 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login'))
+            return redirect(url_for('login', next=request.path))
         # Guard against stale session (user deleted after login).
         # Cache in g so current_user() avoids a second DB round-trip.
         if not hasattr(g, 'current_user'):
@@ -177,25 +181,41 @@ def current_user():
 # Auth routes
 # ---------------------------------------------------------------------------
 
+def _safe_next(next_url):
+    """Return next_url only if it is a relative path on this host."""
+    if next_url:
+        parsed = urlparse(next_url)
+        # Allow only relative URLs (no scheme/netloc) to prevent open redirect.
+        if not parsed.scheme and not parsed.netloc and next_url.startswith('/'):
+            return next_url
+    return None
+
+
 @app.route('/login', methods=['GET', 'POST'])
 @limiter.limit('20 per minute; 100 per hour', methods=['POST'])
 def login():
     if 'user_id' in session:
         return redirect(url_for('index'))
+    next_url = _safe_next(request.args.get('next') or request.form.get('next'))
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         if not username or not password:
             flash('Username and password are required.', 'danger')
-            return render_template('login.html')
-        user = User.query.filter_by(username=username).first()
+            return render_template('login.html', next=next_url)
+        user = db.session.execute(
+            db.select(User).filter_by(username=username)
+        ).scalar_one_or_none()
         if user and user.check_password(password):
             session['user_id'] = user.id
             session['username'] = user.username
             flash(f'Welcome back, {user.username}!', 'success')
-            return redirect(url_for('index'))
+            return redirect(next_url or url_for('index'))
         flash('Invalid username or password.', 'danger')
-    return render_template('login.html')
+    return render_template('login.html', next=next_url)
+
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -217,9 +237,15 @@ def register():
             error = 'Password must be at least 6 characters.'
         elif password != confirm:
             error = 'Passwords do not match.'
-        elif User.query.filter_by(username=username).first():
+        elif email and not _EMAIL_RE.match(email):
+            error = 'Please enter a valid email address.'
+        elif db.session.execute(
+            db.select(User).filter_by(username=username)
+        ).scalar_one_or_none():
             error = 'Username already taken.'
-        elif email and User.query.filter_by(email=email).first():
+        elif email and db.session.execute(
+            db.select(User).filter_by(email=email)
+        ).scalar_one_or_none():
             error = 'Email already registered.'
         if error:
             flash(error, 'danger')
@@ -250,27 +276,34 @@ def logout():
 @login_required
 def index():
     user = current_user()
-    total_sales = Sale.query.count()
-    total_revenue = db.session.query(func.sum(Sale.total_amount)).scalar() or 0
-    total_customers = Customer.query.count()
-    total_products = Product.query.count()
+    total_sales = db.session.scalar(db.select(func.count()).select_from(Sale))
+    total_revenue = db.session.scalar(db.select(func.sum(Sale.total_amount))) or 0
+    total_customers = db.session.scalar(db.select(func.count()).select_from(Customer))
+    total_products = db.session.scalar(db.select(func.count()).select_from(Product))
 
     # Recent sales (last 30 days)
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    recent_sales = Sale.query.filter(Sale.sale_date >= thirty_days_ago).count()
+    recent_sales = db.session.scalar(
+        db.select(func.count()).select_from(Sale).where(Sale.sale_date >= thirty_days_ago)
+    )
 
     # Top 5 products by revenue
-    top_products = (
-        db.session.query(Product.name, func.sum(Sale.total_amount).label('revenue'))
+    top_products = db.session.execute(
+        db.select(Product.name, func.sum(Sale.total_amount).label('revenue'))
         .join(Sale, Sale.product_id == Product.id)
         .group_by(Product.id)
         .order_by(func.sum(Sale.total_amount).desc())
         .limit(5)
-        .all()
-    )
+    ).all()
 
-    dashboards = Dashboard.query.filter_by(user_id=user.id).order_by(Dashboard.created_at.desc()).limit(5).all()
-    reports = Report.query.filter_by(user_id=user.id).order_by(Report.created_at.desc()).limit(5).all()
+    dashboards = db.session.scalars(
+        db.select(Dashboard).filter_by(user_id=user.id)
+        .order_by(Dashboard.created_at.desc()).limit(5)
+    ).all()
+    reports = db.session.scalars(
+        db.select(Report).filter_by(user_id=user.id)
+        .order_by(Report.created_at.desc()).limit(5)
+    ).all()
 
     return render_template(
         'index.html',
@@ -295,7 +328,9 @@ def index():
 @login_required
 def dashboards():
     user = current_user()
-    all_dashboards = Dashboard.query.filter_by(user_id=user.id).order_by(Dashboard.created_at.desc()).all()
+    all_dashboards = db.session.scalars(
+        db.select(Dashboard).filter_by(user_id=user.id).order_by(Dashboard.created_at.desc())
+    ).all()
     return render_template('dashboards.html', user=user, dashboards=all_dashboards)
 
 
@@ -324,8 +359,12 @@ def new_dashboard():
 @login_required
 def view_dashboard(dashboard_id):
     user = current_user()
-    dashboard = Dashboard.query.filter_by(id=dashboard_id, user_id=user.id).first_or_404()
-    widgets = Widget.query.filter_by(dashboard_id=dashboard_id).order_by(Widget.position).all()
+    dashboard = db.first_or_404(
+        db.select(Dashboard).filter_by(id=dashboard_id, user_id=user.id)
+    )
+    widgets = db.session.scalars(
+        db.select(Widget).filter_by(dashboard_id=dashboard_id).order_by(Widget.position)
+    ).all()
     return render_template('dashboard_view.html', user=user, dashboard=dashboard, widgets=widgets)
 
 
@@ -333,7 +372,9 @@ def view_dashboard(dashboard_id):
 @login_required
 def delete_dashboard(dashboard_id):
     user = current_user()
-    dashboard = Dashboard.query.filter_by(id=dashboard_id, user_id=user.id).first_or_404()
+    dashboard = db.first_or_404(
+        db.select(Dashboard).filter_by(id=dashboard_id, user_id=user.id)
+    )
     db.session.delete(dashboard)
     db.session.commit()
     flash(f'Dashboard "{dashboard.name}" deleted.', 'info')
@@ -348,7 +389,9 @@ def delete_dashboard(dashboard_id):
 @login_required
 def data_sources():
     user = current_user()
-    sources = DataSource.query.filter_by(user_id=user.id).order_by(DataSource.created_at.desc()).all()
+    sources = db.session.scalars(
+        db.select(DataSource).filter_by(user_id=user.id).order_by(DataSource.created_at.desc())
+    ).all()
     return render_template('data_sources.html', user=user, sources=sources)
 
 
@@ -387,7 +430,9 @@ def new_data_source():
 @login_required
 def delete_data_source(source_id):
     user = current_user()
-    source = DataSource.query.filter_by(id=source_id, user_id=user.id).first_or_404()
+    source = db.first_or_404(
+        db.select(DataSource).filter_by(id=source_id, user_id=user.id)
+    )
     db.session.delete(source)
     db.session.commit()
     flash(f'Data source "{source.name}" deleted.', 'info')
@@ -402,7 +447,9 @@ def delete_data_source(source_id):
 @login_required
 def reports():
     user = current_user()
-    all_reports = Report.query.filter_by(user_id=user.id).order_by(Report.created_at.desc()).all()
+    all_reports = db.session.scalars(
+        db.select(Report).filter_by(user_id=user.id).order_by(Report.created_at.desc())
+    ).all()
     return render_template('reports.html', user=user, reports=all_reports)
 
 
@@ -431,7 +478,9 @@ def new_report():
 @login_required
 def view_report(report_id):
     user = current_user()
-    report = Report.query.filter_by(id=report_id, user_id=user.id).first_or_404()
+    report = db.first_or_404(
+        db.select(Report).filter_by(id=report_id, user_id=user.id)
+    )
     return render_template('report_view.html', user=user, report=report)
 
 
@@ -439,7 +488,9 @@ def view_report(report_id):
 @login_required
 def delete_report(report_id):
     user = current_user()
-    report = Report.query.filter_by(id=report_id, user_id=user.id).first_or_404()
+    report = db.first_or_404(
+        db.select(Report).filter_by(id=report_id, user_id=user.id)
+    )
     db.session.delete(report)
     db.session.commit()
     flash(f'Report "{report.name}" deleted.', 'info')
@@ -581,16 +632,16 @@ def api_employee_stats():
 @login_required
 def api_kpis():
     """Key performance indicators."""
-    total_revenue = db.session.query(func.sum(Sale.total_amount)).scalar() or 0
-    total_sales = Sale.query.count()
-    total_customers = Customer.query.count()
-    total_products = Product.query.count()
+    total_revenue = db.session.scalar(db.select(func.sum(Sale.total_amount))) or 0
+    total_sales = db.session.scalar(db.select(func.count()).select_from(Sale))
+    total_customers = db.session.scalar(db.select(func.count()).select_from(Customer))
+    total_products = db.session.scalar(db.select(func.count()).select_from(Product))
     avg_order = float(total_revenue) / total_sales if total_sales else 0
 
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    recent_revenue = db.session.query(func.sum(Sale.total_amount)).filter(
-        Sale.sale_date >= thirty_days_ago
-    ).scalar() or 0
+    recent_revenue = db.session.scalar(
+        db.select(func.sum(Sale.total_amount)).where(Sale.sale_date >= thirty_days_ago)
+    ) or 0
 
     return jsonify({
         'total_revenue': round(float(total_revenue), 2),
@@ -617,7 +668,7 @@ def create_tables():
         # Create default admin if no users exist.
         # The try/except guards against a rare race condition when multiple
         # worker processes start simultaneously and both attempt the INSERT.
-        if not User.query.first():
+        if not db.session.scalar(db.select(User).limit(1)):
             admin_password = os.environ.get('ADMIN_PASSWORD')
             if not admin_password:
                 admin_password = secrets.token_urlsafe(14)

@@ -31,7 +31,7 @@
             <td class="text-muted text-sm">{{ s.created_at.strftime('%b %d, %Y') }}</td>
             <td>
               <form method="POST" action="{{ url_for('delete_data_source', source_id=s.id) }}"
-                    onsubmit="return confirm('Delete this data source?')" style="display:inline">
+                    onsubmit="return confirm('Delete this data source?')" class="form-inline">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
               </form>

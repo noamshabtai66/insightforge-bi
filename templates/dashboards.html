@@ -26,7 +26,7 @@
             <form method="POST" action="{{ url_for('delete_dashboard', dashboard_id=d.id) }}"
                   data-name="{{ d.name }}"
                   onsubmit="return confirm('Delete dashboard &quot;' + this.dataset.name + '&quot;?')"
-                  style="display:inline">
+                  class="form-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>

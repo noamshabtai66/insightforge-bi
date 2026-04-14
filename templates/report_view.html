@@ -13,7 +13,7 @@
     <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}"
           data-name="{{ report.name }}"
           onsubmit="return confirm('Delete report &quot;' + this.dataset.name + '&quot;?')"
-          style="display:inline">
+          class="form-inline">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
     </form>
