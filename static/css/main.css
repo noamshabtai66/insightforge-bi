@@ -481,6 +481,35 @@ select.form-control { cursor: pointer; }
 
 .empty-page-sm { padding: 40px 0; text-align: center; color: var(--text-muted); }
 
+/* ── Pagination ──────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-size: 13px;
+}
+
+.pagination a,
+.pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.pagination a:hover { background: var(--surface2); color: var(--text); }
+.pagination .current { background: var(--primary); color: #fff; border-color: var(--primary); }
+.pagination .disabled { opacity: 0.35; pointer-events: none; }
+
 /* ── Error page ──────────────────────────────────────────── */
 .error-code {
   font-size: 56px;

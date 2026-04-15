@@ -25,7 +25,7 @@
             <td><span class="badge badge-type">{{ s.data_type }}</span></td>
             <td class="text-muted text-sm">
               {%- if s.connection_string -%}
-                {{ s.connection_string[:20] }}{% if s.connection_string|length > 20 %}…{% endif %}
+                <span title="Connection string configured — value hidden for security">&#128274; [configured]</span>
               {%- else -%}—{%- endif -%}
             </td>
             <td class="text-muted text-sm">{{ s.created_at.strftime('%b %d, %Y') }}</td>
@@ -41,6 +41,27 @@
       </tbody>
     </table>
   </div>
+  {% if total_pages > 1 %}
+    <nav class="pagination" aria-label="Data source pages">
+      {% if page > 1 %}
+        <a href="{{ url_for('data_sources', page=page-1) }}">&laquo;</a>
+      {% else %}
+        <span class="disabled">&laquo;</span>
+      {% endif %}
+      {% for p in range(1, total_pages + 1) %}
+        {% if p == page %}
+          <span class="current">{{ p }}</span>
+        {% else %}
+          <a href="{{ url_for('data_sources', page=p) }}">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page < total_pages %}
+        <a href="{{ url_for('data_sources', page=page+1) }}">&raquo;</a>
+      {% else %}
+        <span class="disabled">&raquo;</span>
+      {% endif %}
+    </nav>
+  {% endif %}
 {% else %}
   <div class="empty-page">
     <p>No data sources configured.</p>

@@ -51,6 +51,8 @@ app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'f
 
 db.init_app(app)
 
+PER_PAGE = 20  # records per page for list views
+
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -79,6 +81,11 @@ def add_security_headers(response):
     response.headers['Permissions-Policy'] = (
         'camera=(), microphone=(), geolocation=(), payment=()'
     )
+    # HSTS: only sent over HTTPS to avoid breaking plain-HTTP dev environments.
+    if app.config.get('SESSION_COOKIE_SECURE'):
+        response.headers['Strict-Transport-Security'] = (
+            'max-age=31536000; includeSubDomains'
+        )
     return response
 
 
@@ -233,8 +240,10 @@ def register():
             error = 'Username must be at least 3 characters.'
         elif len(username) > 80:
             error = 'Username must be 80 characters or fewer.'
-        elif not password or len(password) < 6:
-            error = 'Password must be at least 6 characters.'
+        elif not password or len(password) < 8:
+            error = 'Password must be at least 8 characters.'
+        elif not any(c.isdigit() for c in password):
+            error = 'Password must contain at least one number.'
         elif password != confirm:
             error = 'Passwords do not match.'
         elif email and not _EMAIL_RE.match(email):
@@ -328,10 +337,22 @@ def index():
 @login_required
 def dashboards():
     user = current_user()
+    page = request.args.get('page', 1, type=int)
+    page = max(1, page)
+    total = db.session.scalar(
+        db.select(func.count()).select_from(Dashboard).where(Dashboard.user_id == user.id)
+    )
+    total_pages = max(1, -(-total // PER_PAGE))  # ceiling division
+    page = min(page, total_pages)
     all_dashboards = db.session.scalars(
-        db.select(Dashboard).filter_by(user_id=user.id).order_by(Dashboard.created_at.desc())
+        db.select(Dashboard).filter_by(user_id=user.id)
+        .order_by(Dashboard.created_at.desc())
+        .limit(PER_PAGE).offset((page - 1) * PER_PAGE)
     ).all()
-    return render_template('dashboards.html', user=user, dashboards=all_dashboards)
+    return render_template(
+        'dashboards.html', user=user, dashboards=all_dashboards,
+        page=page, total_pages=total_pages,
+    )
 
 
 @app.route('/dashboards/new', methods=['GET', 'POST'])
@@ -389,10 +410,22 @@ def delete_dashboard(dashboard_id):
 @login_required
 def data_sources():
     user = current_user()
+    page = request.args.get('page', 1, type=int)
+    page = max(1, page)
+    total = db.session.scalar(
+        db.select(func.count()).select_from(DataSource).where(DataSource.user_id == user.id)
+    )
+    total_pages = max(1, -(-total // PER_PAGE))
+    page = min(page, total_pages)
     sources = db.session.scalars(
-        db.select(DataSource).filter_by(user_id=user.id).order_by(DataSource.created_at.desc())
+        db.select(DataSource).filter_by(user_id=user.id)
+        .order_by(DataSource.created_at.desc())
+        .limit(PER_PAGE).offset((page - 1) * PER_PAGE)
     ).all()
-    return render_template('data_sources.html', user=user, sources=sources)
+    return render_template(
+        'data_sources.html', user=user, sources=sources,
+        page=page, total_pages=total_pages,
+    )
 
 
 @app.route('/data-sources/new', methods=['GET', 'POST'])
@@ -447,10 +480,22 @@ def delete_data_source(source_id):
 @login_required
 def reports():
     user = current_user()
+    page = request.args.get('page', 1, type=int)
+    page = max(1, page)
+    total = db.session.scalar(
+        db.select(func.count()).select_from(Report).where(Report.user_id == user.id)
+    )
+    total_pages = max(1, -(-total // PER_PAGE))
+    page = min(page, total_pages)
     all_reports = db.session.scalars(
-        db.select(Report).filter_by(user_id=user.id).order_by(Report.created_at.desc())
+        db.select(Report).filter_by(user_id=user.id)
+        .order_by(Report.created_at.desc())
+        .limit(PER_PAGE).offset((page - 1) * PER_PAGE)
     ).all()
-    return render_template('reports.html', user=user, reports=all_reports)
+    return render_template(
+        'reports.html', user=user, reports=all_reports,
+        page=page, total_pages=total_pages,
+    )
 
 
 @app.route('/reports/new', methods=['GET', 'POST'])
@@ -503,6 +548,7 @@ def delete_report(report_id):
 
 @app.route('/api/sales-overview')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_sales_overview():
     """Monthly sales totals for the past 12 months.
 
@@ -530,6 +576,7 @@ def api_sales_overview():
 
 @app.route('/api/revenue-by-region')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_revenue_by_region():
     """Total revenue per region."""
     rows = (
@@ -548,6 +595,7 @@ def api_revenue_by_region():
 
 @app.route('/api/top-products')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_top_products():
     """Top 10 products by revenue."""
     rows = (
@@ -567,6 +615,7 @@ def api_top_products():
 
 @app.route('/api/sales-by-category')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_sales_by_category():
     """Revenue breakdown by product category."""
     rows = (
@@ -584,6 +633,7 @@ def api_sales_by_category():
 
 @app.route('/api/revenue-targets')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_revenue_targets():
     """Quarterly revenue targets per region for the current year."""
     current_year = datetime.now(timezone.utc).year
@@ -607,6 +657,7 @@ def api_revenue_targets():
 
 @app.route('/api/employee-stats')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_employee_stats():
     """Headcount and average salary per department."""
     rows = (
@@ -630,6 +681,7 @@ def api_employee_stats():
 
 @app.route('/api/kpis')
 @login_required
+@limiter.limit('120 per minute; 600 per hour')
 def api_kpis():
     """Key performance indicators."""
     total_revenue = db.session.scalar(db.select(func.sum(Sale.total_amount))) or 0

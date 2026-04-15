@@ -20,7 +20,7 @@ from models.models import (
 
 def create_sample_data():
     # Guard: skip if already seeded
-    if Region.query.first():
+    if db.session.scalar(db.select(Region).limit(1)):
         print("Database already seeded — skipping.")
         return
 
@@ -88,7 +88,7 @@ def create_sample_data():
     print("Seeding revenue targets...")
     db.session.flush()  # ensure region IDs are available
     current_year = datetime.now(timezone.utc).year
-    for region in Region.query.all():
+    for region in db.session.scalars(db.select(Region)).all():
         for quarter in range(1, 5):
             t = RevenueTarget(
                 region_id=region.id,
