@@ -277,6 +277,74 @@ async function initRevenueTargetsChart() {
   }
 }
 
+/**
+ * Generic widget chart renderer.
+ * Reads data from an API endpoint that returns { labels: [...], revenue: [...] }
+ * and renders the requested chart type on the given canvas.
+ */
+async function initWidgetChart(canvasId, chartType, apiEndpoint) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  try {
+    const res = await fetch(apiEndpoint);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.labels || !data.revenue) return;
+
+    let chartData, options;
+    if (chartType === 'line') {
+      chartData = {
+        labels: data.labels,
+        datasets: [{
+          label: 'Revenue',
+          data: data.revenue,
+          borderColor: COLORS[0],
+          backgroundColor: 'rgba(99,102,241,0.1)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        }],
+      };
+      options = getChartDefaults();
+    } else if (chartType === 'bar') {
+      chartData = {
+        labels: data.labels,
+        datasets: [{
+          label: 'Revenue',
+          data: data.revenue,
+          backgroundColor: COLORS.map((c) => c + 'cc'),
+          borderColor: COLORS,
+          borderWidth: 1,
+        }],
+      };
+      options = getChartDefaults();
+    } else {
+      // pie / doughnut
+      chartData = {
+        labels: data.labels,
+        datasets: [{
+          data: data.revenue,
+          backgroundColor: COLORS,
+          borderColor: '#1a1d27',
+          borderWidth: 2,
+        }],
+      };
+      options = {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#7c87a0', font: { size: 11 } } },
+          tooltip: getCircularTooltip(),
+        },
+      };
+    }
+    new Chart(ctx, { type: chartType, data: chartData, options });
+  } catch (e) {
+    console.warn('Widget chart failed', canvasId, e);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadKPIs();
   initSalesChart();
@@ -284,4 +352,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initCategoryChart();
   initProductsChart();
   initRevenueTargetsChart();
+
+  // Dashboard widget charts: auto-detect canvases with data-chart-api attribute
+  document.querySelectorAll('canvas[data-chart-api]').forEach((canvas) => {
+    initWidgetChart(canvas.id, canvas.dataset.chartType || 'bar', canvas.dataset.chartApi);
+  });
 });

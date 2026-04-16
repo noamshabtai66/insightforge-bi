@@ -23,7 +23,10 @@
     </ul>
     <div class="nav-user">
       <span class="nav-username">{{ session.get('username') }}</span>
-      <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+      <form method="POST" action="{{ url_for('logout') }}" class="form-inline">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn-logout">Logout</button>
+      </form>
     </div>
     <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle navigation" aria-expanded="false">
       <span></span><span></span><span></span>

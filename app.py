@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import secrets
@@ -270,7 +271,7 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     flash('You have been logged out.', 'info')
@@ -386,7 +387,21 @@ def view_dashboard(dashboard_id):
     widgets = db.session.scalars(
         db.select(Widget).filter_by(dashboard_id=dashboard_id).order_by(Widget.position)
     ).all()
-    return render_template('dashboard_view.html', user=user, dashboard=dashboard, widgets=widgets)
+    widget_configs = {}
+    for w in widgets:
+        try:
+            widget_configs[w.id] = json.loads(w.config) if w.config else {}
+        except (ValueError, TypeError):
+            widget_configs[w.id] = {}
+    return render_template(
+        'dashboard_view.html',
+        user=user,
+        dashboard=dashboard,
+        widgets=widgets,
+        widget_configs=widget_configs,
+        widget_data_sources=WIDGET_DATA_SOURCES,
+        allowed_widget_types=ALLOWED_WIDGET_TYPES,
+    )
 
 
 @app.route('/dashboards/<int:dashboard_id>/delete', methods=['POST'])
@@ -540,6 +555,78 @@ def delete_report(report_id):
     db.session.commit()
     flash(f'Report "{report.name}" deleted.', 'info')
     return redirect(url_for('reports'))
+
+
+# ---------------------------------------------------------------------------
+# Widgets
+# ---------------------------------------------------------------------------
+
+ALLOWED_WIDGET_TYPES = {'bar', 'line', 'pie', 'doughnut'}
+
+# Maps form key → API path. Only endpoints that return {labels, revenue} are
+# supported for generic chart rendering; expand as API shapes are unified.
+WIDGET_DATA_SOURCES = {
+    'sales_overview':    '/api/sales-overview',
+    'revenue_by_region': '/api/revenue-by-region',
+    'sales_by_category': '/api/sales-by-category',
+    'top_products':      '/api/top-products',
+}
+
+
+@app.route('/dashboards/<int:dashboard_id>/widgets/new', methods=['POST'])
+@login_required
+def new_widget(dashboard_id):
+    user = current_user()
+    dashboard = db.first_or_404(
+        db.select(Dashboard).filter_by(id=dashboard_id, user_id=user.id)
+    )
+    title = request.form.get('title', '').strip()
+    widget_type = request.form.get('widget_type', '').strip()
+    data_source = request.form.get('data_source', '').strip()
+    if not title or not widget_type or not data_source:
+        flash('Title, type, and data source are all required.', 'danger')
+        return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+    if len(title) > 120:
+        flash('Title must be 120 characters or fewer.', 'danger')
+        return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+    if widget_type not in ALLOWED_WIDGET_TYPES:
+        flash('Invalid widget type.', 'danger')
+        return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+    if data_source not in WIDGET_DATA_SOURCES:
+        flash('Invalid data source.', 'danger')
+        return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+    max_pos = db.session.scalar(
+        db.select(func.max(Widget.position)).where(Widget.dashboard_id == dashboard_id)
+    ) or 0
+    widget = Widget(
+        title=title,
+        type=widget_type,
+        dashboard_id=dashboard.id,
+        config=json.dumps({'api_endpoint': WIDGET_DATA_SOURCES[data_source], 'data_source': data_source}),
+        position=max_pos + 1,
+    )
+    db.session.add(widget)
+    db.session.commit()
+    flash(f'Widget "{title}" added.', 'success')
+    return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+
+
+@app.route('/dashboards/<int:dashboard_id>/widgets/<int:widget_id>/delete', methods=['POST'])
+@login_required
+def delete_widget(dashboard_id, widget_id):
+    user = current_user()
+    # Ownership check via dashboard
+    db.first_or_404(
+        db.select(Dashboard).filter_by(id=dashboard_id, user_id=user.id)
+    )
+    widget = db.first_or_404(
+        db.select(Widget).filter_by(id=widget_id, dashboard_id=dashboard_id)
+    )
+    title = widget.title
+    db.session.delete(widget)
+    db.session.commit()
+    flash(f'Widget "{title}" removed.', 'info')
+    return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
 
 
 # ---------------------------------------------------------------------------

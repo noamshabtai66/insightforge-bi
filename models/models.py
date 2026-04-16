@@ -40,6 +40,7 @@ class DataSource(db.Model):
     connection_string = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     def __repr__(self):
         return f'<DataSource {self.name}>'
@@ -52,6 +53,7 @@ class Dashboard(db.Model):
     description = db.Column(db.Text, nullable=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     widgets = db.relationship('Widget', backref='dashboard', lazy=True, cascade='all, delete-orphan')
 
@@ -81,6 +83,7 @@ class Report(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     config = db.Column(db.Text, nullable=True)  # JSON config
     created_at = db.Column(db.DateTime, default=_utcnow)
+    updated_at = db.Column(db.DateTime, default=_utcnow, onupdate=_utcnow)
 
     def __repr__(self):
         return f'<Report {self.name}>'

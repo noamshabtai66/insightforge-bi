@@ -20,16 +20,74 @@
   </div>
 </div>
 
+<!-- Add Widget collapsible (native <details>, no JS needed) -->
+<details class="add-widget-details mb-24">
+  <summary class="btn btn-primary btn-sm">+ Add Widget</summary>
+  <div class="add-widget-form">
+    <form method="POST" action="{{ url_for('new_widget', dashboard_id=dashboard.id) }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+      <div class="add-widget-fields">
+        <div class="form-group mb-0">
+          <label for="widget-title">Title</label>
+          <input type="text" id="widget-title" name="title" class="form-control"
+                 placeholder="e.g. Monthly Revenue" required maxlength="120" />
+        </div>
+        <div class="form-group mb-0">
+          <label for="widget-type">Chart Type</label>
+          <select id="widget-type" name="widget_type" class="form-control" required>
+            <option value="">Select…</option>
+            <option value="line">Line</option>
+            <option value="bar">Bar</option>
+            <option value="pie">Pie</option>
+            <option value="doughnut">Doughnut</option>
+          </select>
+        </div>
+        <div class="form-group mb-0">
+          <label for="widget-source">Data Source</label>
+          <select id="widget-source" name="data_source" class="form-control" required>
+            <option value="">Select…</option>
+            <option value="sales_overview">Monthly Revenue</option>
+            <option value="revenue_by_region">Revenue by Region</option>
+            <option value="sales_by_category">Sales by Category</option>
+            <option value="top_products">Top Products</option>
+          </select>
+        </div>
+        <div class="form-group mb-0 add-widget-submit">
+          <label class="invisible-label">&nbsp;</label>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</details>
+
 {% if widgets %}
   <div class="widget-grid">
     {% for w in widgets %}
+      {% set cfg = widget_configs.get(w.id, {}) %}
       <div class="widget-card">
         <div class="widget-header">
           <h4>{{ w.title }}</h4>
-          <span class="badge">{{ w.type }}</span>
+          <div class="flex-row-gap">
+            <span class="badge">{{ w.type }}</span>
+            <form method="POST"
+                  action="{{ url_for('delete_widget', dashboard_id=dashboard.id, widget_id=w.id) }}"
+                  onsubmit="return confirm('Remove widget &quot;{{ w.title|replace('&quot;', '') }}&quot;?')"
+                  class="form-inline">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-sm btn-danger">&#x2715;</button>
+            </form>
+          </div>
         </div>
         <div class="widget-body">
-          <canvas id="widget-{{ w.id }}" height="120"></canvas>
+          {% if cfg.get('api_endpoint') %}
+            <canvas id="widget-{{ w.id }}"
+                    data-chart-api="{{ cfg.api_endpoint }}"
+                    data-chart-type="{{ w.type }}"
+                    height="120"></canvas>
+          {% else %}
+            <p class="text-muted text-sm">No data source configured.</p>
+          {% endif %}
         </div>
       </div>
     {% endfor %}
@@ -37,7 +95,16 @@
 {% else %}
   <div class="empty-page">
     <p>This dashboard has no widgets yet.</p>
-    <p class="text-muted">Widget management coming soon.</p>
+    <p class="text-muted text-sm">Use the "Add Widget" button above to create your first chart.</p>
   </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if widgets %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
+        crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 {% endif %}
 {% endblock %}
