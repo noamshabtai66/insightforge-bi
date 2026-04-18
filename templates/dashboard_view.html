@@ -72,7 +72,8 @@
             <span class="badge">{{ w.type }}</span>
             <form method="POST"
                   action="{{ url_for('delete_widget', dashboard_id=dashboard.id, widget_id=w.id) }}"
-                  onsubmit="return confirm('Remove widget &quot;{{ w.title|replace('&quot;', '') }}&quot;?')"
+                  data-name="{{ w.title }}"
+                  onsubmit="return confirm('Remove widget \u201c' + this.dataset.name + '\u201d?')"
                   class="form-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">&#x2715;</button>

@@ -643,17 +643,16 @@ def api_sales_overview():
     replace with func.to_char(Sale.sale_date, 'YYYY-MM').
     """
     twelve_months_ago = datetime.now(timezone.utc) - timedelta(days=365)
-    rows = (
-        db.session.query(
+    rows = db.session.execute(
+        db.select(
             func.strftime('%Y-%m', Sale.sale_date).label('month'),
             func.sum(Sale.total_amount).label('revenue'),
             func.count(Sale.id).label('count'),
         )
-        .filter(Sale.sale_date >= twelve_months_ago)
+        .where(Sale.sale_date >= twelve_months_ago)
         .group_by(func.strftime('%Y-%m', Sale.sale_date))
         .order_by(func.strftime('%Y-%m', Sale.sale_date))
-        .all()
-    )
+    ).all()
     return jsonify({
         'labels': [r.month for r in rows],
         'revenue': [round(float(r.revenue or 0), 2) for r in rows],
@@ -666,14 +665,13 @@ def api_sales_overview():
 @limiter.limit('120 per minute; 600 per hour')
 def api_revenue_by_region():
     """Total revenue per region."""
-    rows = (
-        db.session.query(Region.name, func.sum(Sale.total_amount).label('revenue'))
+    rows = db.session.execute(
+        db.select(Region.name, func.sum(Sale.total_amount).label('revenue'))
         .join(Customer, Customer.region_id == Region.id)
         .join(Sale, Sale.customer_id == Customer.id)
         .group_by(Region.id)
         .order_by(func.sum(Sale.total_amount).desc())
-        .all()
-    )
+    ).all()
     return jsonify({
         'labels': [r.name for r in rows],
         'revenue': [round(float(r.revenue or 0), 2) for r in rows],
@@ -685,14 +683,13 @@ def api_revenue_by_region():
 @limiter.limit('120 per minute; 600 per hour')
 def api_top_products():
     """Top 10 products by revenue."""
-    rows = (
-        db.session.query(Product.name, Product.category, func.sum(Sale.total_amount).label('revenue'))
+    rows = db.session.execute(
+        db.select(Product.name, Product.category, func.sum(Sale.total_amount).label('revenue'))
         .join(Sale, Sale.product_id == Product.id)
         .group_by(Product.id)
         .order_by(func.sum(Sale.total_amount).desc())
         .limit(10)
-        .all()
-    )
+    ).all()
     return jsonify({
         'labels': [r.name for r in rows],
         'revenue': [round(float(r.revenue or 0), 2) for r in rows],
@@ -705,13 +702,12 @@ def api_top_products():
 @limiter.limit('120 per minute; 600 per hour')
 def api_sales_by_category():
     """Revenue breakdown by product category."""
-    rows = (
-        db.session.query(Product.category, func.sum(Sale.total_amount).label('revenue'))
+    rows = db.session.execute(
+        db.select(Product.category, func.sum(Sale.total_amount).label('revenue'))
         .join(Sale, Sale.product_id == Product.id)
         .group_by(Product.category)
         .order_by(func.sum(Sale.total_amount).desc())
-        .all()
-    )
+    ).all()
     return jsonify({
         'labels': [r.category for r in rows],
         'revenue': [round(float(r.revenue or 0), 2) for r in rows],
@@ -724,17 +720,12 @@ def api_sales_by_category():
 def api_revenue_targets():
     """Quarterly revenue targets per region for the current year."""
     current_year = datetime.now(timezone.utc).year
-    targets = (
-        db.session.query(
-            Region.name,
-            RevenueTarget.quarter,
-            RevenueTarget.target_amount,
-        )
+    targets = db.session.execute(
+        db.select(Region.name, RevenueTarget.quarter, RevenueTarget.target_amount)
         .join(Region, RevenueTarget.region_id == Region.id)
-        .filter(RevenueTarget.year == current_year)
+        .where(RevenueTarget.year == current_year)
         .order_by(Region.name, RevenueTarget.quarter)
-        .all()
-    )
+    ).all()
     # Structure: { region: { Q1: target, Q2: target, ... } }
     result = {}
     for region_name, quarter, target in targets:
@@ -747,8 +738,8 @@ def api_revenue_targets():
 @limiter.limit('120 per minute; 600 per hour')
 def api_employee_stats():
     """Headcount and average salary per department."""
-    rows = (
-        db.session.query(
+    rows = db.session.execute(
+        db.select(
             Employee.department,
             func.count(Employee.id).label('headcount'),
             func.avg(Employee.salary).label('avg_salary'),
@@ -756,8 +747,7 @@ def api_employee_stats():
         )
         .group_by(Employee.department)
         .order_by(Employee.department)
-        .all()
-    )
+    ).all()
     return jsonify({
         'departments': [r.department for r in rows],
         'headcount': [r.headcount for r in rows],

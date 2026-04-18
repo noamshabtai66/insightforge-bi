@@ -90,8 +90,10 @@ a:hover { text-decoration: underline; }
   padding: 5px 12px;
   border-radius: var(--radius);
   border: 1px solid var(--border);
+  background: none;
   color: var(--text-muted);
   font-size: 12px;
+  cursor: pointer;
   transition: all 0.15s;
 }
 
@@ -595,6 +597,7 @@ select.form-control { cursor: pointer; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
+  margin-bottom: 24px;
 }
 
 .widget-card {
@@ -612,6 +615,8 @@ select.form-control { cursor: pointer; }
 }
 
 .widget-header h4 { font-size: 13px; font-weight: 600; }
+
+.widget-body { min-height: 180px; position: relative; }
 
 /* ── Hamburger button (hidden on desktop) ────────────────── */
 .nav-hamburger {
