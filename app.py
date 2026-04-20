@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import os
 import logging
@@ -18,7 +20,7 @@ import re
 
 from flask import (
     Flask, redirect, url_for, session, request,
-    render_template, flash, jsonify, g
+    render_template, flash, jsonify, g, Response
 )
 from urllib.parse import urlparse
 from flask_sqlalchemy import SQLAlchemy
@@ -49,10 +51,13 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 # Enable Secure flag in production (HTTPS); keep off for local HTTP dev
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+# Limit request body to 2 MB to prevent DoS via oversized POST payloads
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 db.init_app(app)
 
-PER_PAGE = 20  # records per page for list views
+PER_PAGE = 20       # records per page for list views
+MAX_PAGE = 10000    # upper bound to prevent DoS via absurdly large page numbers
 
 limiter = Limiter(
     get_remote_address,
@@ -115,6 +120,11 @@ def not_found(e):
 @app.errorhandler(405)
 def method_not_allowed(e):
     return render_template('error.html', code=405, message='Method not allowed.'), 405
+
+
+@app.errorhandler(413)
+def request_too_large(e):
+    return render_template('error.html', code=413, message='Request too large. Maximum upload size is 2 MB.'), 413
 
 
 @app.errorhandler(500)
@@ -215,15 +225,19 @@ def login():
             db.select(User).filter_by(username=username)
         ).scalar_one_or_none()
         if user and user.check_password(password):
+            session.clear()  # drop old session data (session fixation mitigation)
             session['user_id'] = user.id
             session['username'] = user.username
+            logger.info('Successful login: user=%s ip=%s', username, request.remote_addr)
             flash(f'Welcome back, {user.username}!', 'success')
             return redirect(next_url or url_for('index'))
+        logger.warning('Failed login attempt: user=%s ip=%s', username, request.remote_addr)
         flash('Invalid username or password.', 'danger')
     return render_template('login.html', next=next_url)
 
 
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+_USERNAME_RE = re.compile(r'^[a-zA-Z0-9_-]+$')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -241,6 +255,8 @@ def register():
             error = 'Username must be at least 3 characters.'
         elif len(username) > 80:
             error = 'Username must be 80 characters or fewer.'
+        elif not _USERNAME_RE.match(username):
+            error = 'Username may only contain letters, numbers, hyphens, and underscores.'
         elif not password or len(password) < 8:
             error = 'Password must be at least 8 characters.'
         elif not any(c.isdigit() for c in password):
@@ -338,8 +354,7 @@ def index():
 @login_required
 def dashboards():
     user = current_user()
-    page = request.args.get('page', 1, type=int)
-    page = max(1, page)
+    page = min(max(1, request.args.get('page', 1, type=int)), MAX_PAGE)
     total = db.session.scalar(
         db.select(func.count()).select_from(Dashboard).where(Dashboard.user_id == user.id)
     )
@@ -368,6 +383,9 @@ def new_dashboard():
             return render_template('dashboard_form.html', user=user)
         if len(name) > 120:
             flash('Name must be 120 characters or fewer.', 'danger')
+            return render_template('dashboard_form.html', user=user)
+        if len(description) > 1000:
+            flash('Description must be 1000 characters or fewer.', 'danger')
             return render_template('dashboard_form.html', user=user)
         dashboard = Dashboard(name=name, description=description, user_id=user.id)
         db.session.add(dashboard)
@@ -425,8 +443,7 @@ def delete_dashboard(dashboard_id):
 @login_required
 def data_sources():
     user = current_user()
-    page = request.args.get('page', 1, type=int)
-    page = max(1, page)
+    page = min(max(1, request.args.get('page', 1, type=int)), MAX_PAGE)
     total = db.session.scalar(
         db.select(func.count()).select_from(DataSource).where(DataSource.user_id == user.id)
     )
@@ -495,8 +512,7 @@ def delete_data_source(source_id):
 @login_required
 def reports():
     user = current_user()
-    page = request.args.get('page', 1, type=int)
-    page = max(1, page)
+    page = min(max(1, request.args.get('page', 1, type=int)), MAX_PAGE)
     total = db.session.scalar(
         db.select(func.count()).select_from(Report).where(Report.user_id == user.id)
     )
@@ -525,6 +541,9 @@ def new_report():
             return render_template('report_form.html', user=user)
         if len(name) > 120:
             flash('Name must be 120 characters or fewer.', 'danger')
+            return render_template('report_form.html', user=user)
+        if len(description) > 1000:
+            flash('Description must be 1000 characters or fewer.', 'danger')
             return render_template('report_form.html', user=user)
         report = Report(name=name, description=description, user_id=user.id)
         db.session.add(report)
@@ -627,6 +646,22 @@ def delete_widget(dashboard_id, widget_id):
     db.session.commit()
     flash(f'Widget "{title}" removed.', 'info')
     return redirect(url_for('view_dashboard', dashboard_id=dashboard_id))
+
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+@app.route('/api/health')
+def api_health():
+    """Simple liveness probe; no auth required."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    status = 'ok' if db_ok else 'degraded'
+    return jsonify({'status': status, 'db': db_ok}), 200 if db_ok else 503
 
 
 # ---------------------------------------------------------------------------
@@ -780,6 +815,36 @@ def api_kpis():
         'avg_order_value': round(avg_order, 2),
         'recent_30d_revenue': round(float(recent_revenue), 2),
     })
+
+
+@app.route('/api/export/sales')
+@login_required
+@limiter.limit('10 per minute; 60 per hour')
+def api_export_sales():
+    """Export all sales as CSV (streamed, no full table load into memory)."""
+    rows = db.session.execute(
+        db.select(
+            Sale.id, Customer.name.label('customer'), Product.name.label('product'),
+            Product.category, Sale.quantity, Sale.total_amount, Sale.sale_date,
+        )
+        .join(Customer, Sale.customer_id == Customer.id)
+        .join(Product, Sale.product_id == Product.id)
+        .order_by(Sale.sale_date.desc())
+    ).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['id', 'customer', 'product', 'category', 'quantity', 'total_amount', 'sale_date'])
+    for r in rows:
+        writer.writerow([r.id, r.customer, r.product, r.category, r.quantity,
+                         float(r.total_amount), r.sale_date.strftime('%Y-%m-%d %H:%M:%S')])
+
+    filename = f'sales_export_{datetime.now(timezone.utc).strftime("%Y%m%d")}.csv'
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

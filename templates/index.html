@@ -128,6 +128,7 @@
 <div class="list-card mb-24">
   <div class="list-card-header">
     <h3>Top 5 Products by Revenue</h3>
+    <a href="{{ url_for('api_export_sales') }}" class="btn btn-sm btn-secondary" download>&#8595; Export CSV</a>
   </div>
   <ul class="item-list">
     {% for name, revenue in top_products %}

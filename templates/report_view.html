@@ -10,6 +10,7 @@
   </div>
   <div class="flex-row-gap">
     <a href="{{ url_for('reports') }}" class="btn btn-secondary">&#8592; Back</a>
+    <a href="{{ url_for('api_export_sales') }}" class="btn btn-secondary" download>&#8595; Export CSV</a>
     <form method="POST" action="{{ url_for('delete_report', report_id=report.id) }}"
           data-name="{{ report.name }}"
           onsubmit="return confirm('Delete report &quot;' + this.dataset.name + '&quot;?')"
@@ -30,11 +31,90 @@
       <div class="meta-label">Owner</div>
       <div>{{ user.username }}</div>
     </div>
-  </div>
-
-  <div class="empty-page-sm">
-    <p class="text-muted">Report builder coming soon.</p>
-    <p class="text-muted text-sm">Future versions will allow you to build custom queries and export to CSV/PDF.</p>
+    <div>
+      <div class="meta-label">Last Updated</div>
+      <div>{{ report.updated_at.strftime('%B %d, %Y at %H:%M') if report.updated_at else '—' }}</div>
+    </div>
   </div>
 </div>
+
+<!-- Live KPI summary pulled from /api/kpis -->
+<div class="kpi-grid" id="report-kpi-grid" style="margin-bottom:24px">
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-blue">&#128200;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="r-kpi-revenue">—</div>
+      <div class="kpi-label">Total Revenue</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-green">&#128717;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="r-kpi-sales">—</div>
+      <div class="kpi-label">Total Sales</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-purple">&#128100;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="r-kpi-customers">—</div>
+      <div class="kpi-label">Customers</div>
+    </div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon kpi-orange">&#128722;</div>
+    <div class="kpi-body">
+      <div class="kpi-value" id="r-kpi-avg">—</div>
+      <div class="kpi-label">Avg Order Value</div>
+    </div>
+  </div>
+</div>
+
+<div class="charts-grid mb-24">
+  <div class="chart-card chart-wide">
+    <div class="chart-header">
+      <h3>Monthly Revenue (Last 12 Months)</h3>
+      <span class="badge badge-info">Live</span>
+    </div>
+    <canvas id="reportSalesChart" height="100"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header"><h3>Revenue by Region</h3></div>
+    <canvas id="reportRegionChart" height="160"></canvas>
+  </div>
+</div>
+
+<div class="list-card mb-24">
+  <div class="list-card-header">
+    <h3>Report Builder</h3>
+    <span class="badge badge-info">Upcoming</span>
+  </div>
+  <div class="empty-page-sm">
+    <p class="text-muted">Custom query builder and PDF/CSV export coming in a future release.</p>
+    <p class="text-muted text-sm">For now, use the <strong>Export CSV</strong> button above to download raw sales data.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
+        integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt"
+        crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/kpis');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('r-kpi-revenue').textContent   = fmtCurrency(d.total_revenue);
+    document.getElementById('r-kpi-sales').textContent     = d.total_sales.toLocaleString();
+    document.getElementById('r-kpi-customers').textContent = d.total_customers.toLocaleString();
+    document.getElementById('r-kpi-avg').textContent       = fmtCurrency(d.avg_order_value);
+  } catch (e) { console.warn('Report KPI load failed', e); }
+
+  initWidgetChart('reportSalesChart', 'line', '/api/sales-overview');
+  initWidgetChart('reportRegionChart', 'doughnut', '/api/revenue-by-region');
+});
+</script>
 {% endblock %}
