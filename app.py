@@ -23,7 +23,6 @@ from flask import (
     render_template, flash, jsonify, g, Response
 )
 from urllib.parse import urlparse
-from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -41,6 +40,11 @@ logging.basicConfig(
 app = Flask(__name__)
 _secret = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 if _secret == 'dev-secret-change-in-production':
+    if os.environ.get('FLASK_ENV') == 'production':
+        raise RuntimeError(
+            'Refusing to start: SECRET_KEY must be set to a strong random value in production. '
+            'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
     logger.warning('Using default SECRET_KEY. Set the SECRET_KEY environment variable in production.')
 app.config['SECRET_KEY'] = _secret
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
@@ -56,8 +60,10 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 db.init_app(app)
 
-PER_PAGE = 20       # records per page for list views
-MAX_PAGE = 10000    # upper bound to prevent DoS via absurdly large page numbers
+PER_PAGE = 20           # records per page for list views
+MAX_PAGE = 10000        # upper bound to prevent DoS via absurdly large page numbers
+MAX_FAILED_LOGINS = 5   # failed attempts before lockout
+LOCKOUT_MINUTES = 15    # lockout duration
 
 limiter = Limiter(
     get_remote_address,
@@ -224,13 +230,44 @@ def login():
         user = db.session.execute(
             db.select(User).filter_by(username=username)
         ).scalar_one_or_none()
-        if user and user.check_password(password):
-            session.clear()  # drop old session data (session fixation mitigation)
-            session['user_id'] = user.id
-            session['username'] = user.username
-            logger.info('Successful login: user=%s ip=%s', username, request.remote_addr)
-            flash(f'Welcome back, {user.username}!', 'success')
-            return redirect(next_url or url_for('index'))
+        if user:
+            # Check active lockout
+            if user.locked_until:
+                now_utc = datetime.now(timezone.utc)
+                locked_ts = user.locked_until
+                if locked_ts.tzinfo is None:
+                    locked_ts = locked_ts.replace(tzinfo=timezone.utc)
+                if locked_ts > now_utc:
+                    remaining = max(1, int((locked_ts - now_utc).total_seconds() / 60) + 1)
+                    logger.warning('Login attempt on locked account: user=%s ip=%s', username, request.remote_addr)
+                    flash(f'Account locked. Try again in {remaining} minute(s).', 'danger')
+                    return render_template('login.html', next=next_url)
+                # Lockout expired — clear it before checking password
+                user.locked_until = None
+                user.failed_logins = 0
+
+            if user.check_password(password):
+                user.failed_logins = 0
+                user.locked_until = None
+                db.session.commit()
+                session.clear()  # drop old session data (session fixation mitigation)
+                session['user_id'] = user.id
+                session['username'] = user.username
+                logger.info('Successful login: user=%s ip=%s', username, request.remote_addr)
+                flash(f'Welcome back, {user.username}!', 'success')
+                return redirect(next_url or url_for('index'))
+
+            # Wrong password — increment failure counter
+            user.failed_logins = (user.failed_logins or 0) + 1
+            if user.failed_logins >= MAX_FAILED_LOGINS:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
+                db.session.commit()
+                logger.warning('Account locked: user=%s ip=%s attempts=%d',
+                               username, request.remote_addr, user.failed_logins)
+                flash(f'Too many failed attempts. Account locked for {LOCKOUT_MINUTES} minutes.', 'danger')
+                return render_template('login.html', next=next_url)
+            db.session.commit()
+
         logger.warning('Failed login attempt: user=%s ip=%s', username, request.remote_addr)
         flash('Invalid username or password.', 'danger')
     return render_template('login.html', next=next_url)
@@ -417,8 +454,6 @@ def view_dashboard(dashboard_id):
         dashboard=dashboard,
         widgets=widgets,
         widget_configs=widget_configs,
-        widget_data_sources=WIDGET_DATA_SOURCES,
-        allowed_widget_types=ALLOWED_WIDGET_TYPES,
     )
 
 
@@ -851,6 +886,32 @@ def api_export_sales():
 # App entry point
 # ---------------------------------------------------------------------------
 
+def ensure_columns():
+    """Add columns introduced after initial deployment (lightweight schema migration).
+
+    SQLAlchemy's create_all() skips tables that already exist, so new columns
+    on existing tables must be added manually.  This avoids requiring Alembic
+    for a single-file demo app.
+    """
+    from sqlalchemy import inspect as sa_inspect, text
+    with app.app_context():
+        inspector = sa_inspect(db.engine)
+        if not inspector.has_table('user'):
+            return  # create_tables() hasn't run yet; it will create everything
+        existing = {col['name'] for col in inspector.get_columns('user')}
+        with db.engine.begin() as conn:
+            if 'failed_logins' not in existing:
+                conn.execute(text(
+                    'ALTER TABLE "user" ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0'
+                ))
+                logger.info('Schema migration: added user.failed_logins')
+            if 'locked_until' not in existing:
+                conn.execute(text(
+                    'ALTER TABLE "user" ADD COLUMN locked_until DATETIME'
+                ))
+                logger.info('Schema migration: added user.locked_until')
+
+
 def create_tables():
     """Create DB tables and seed the default admin account.
 
@@ -858,6 +919,7 @@ def create_tables():
     ``python app.py`` or a WSGI server such as gunicorn.
     """
     with app.app_context():
+        ensure_columns()  # add any new columns to pre-existing tables
         db.create_all()
         # Create default admin if no users exist.
         # The try/except guards against a rare race condition when multiple

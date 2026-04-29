@@ -294,6 +294,7 @@ a:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
+  margin-bottom: 24px;
 }
 
 .item-card {

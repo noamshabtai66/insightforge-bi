@@ -16,6 +16,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    failed_logins = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     dashboards = db.relationship('Dashboard', backref='owner', lazy=True, cascade='all, delete-orphan')
@@ -68,7 +70,7 @@ class Widget(db.Model):
     type = db.Column(db.String(50), nullable=False)  # bar, line, pie, kpi
     dashboard_id = db.Column(db.Integer, db.ForeignKey('dashboard.id'), nullable=False)
     config = db.Column(db.Text, nullable=True)  # JSON config
-    position = db.Column(db.Integer, default=0)
+    position = db.Column(db.Integer, default=0, index=True)
     created_at = db.Column(db.DateTime, default=_utcnow)
 
     def __repr__(self):
