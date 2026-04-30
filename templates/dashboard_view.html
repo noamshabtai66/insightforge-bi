@@ -11,8 +11,7 @@
   <div class="flex-row-gap">
     <a href="{{ url_for('dashboards') }}" class="btn btn-secondary">&#8592; Back</a>
     <form method="POST" action="{{ url_for('delete_dashboard', dashboard_id=dashboard.id) }}"
-          data-name="{{ dashboard.name }}"
-          onsubmit="return confirm('Delete dashboard &quot;' + this.dataset.name + '&quot;?')"
+          data-confirm="Delete dashboard &quot;{{ dashboard.name }}&quot;?"
           class="form-inline">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
       <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -72,8 +71,7 @@
             <span class="badge">{{ w.type }}</span>
             <form method="POST"
                   action="{{ url_for('delete_widget', dashboard_id=dashboard.id, widget_id=w.id) }}"
-                  data-name="{{ w.title }}"
-                  onsubmit="return confirm('Remove widget \u201c' + this.dataset.name + '\u201d?')"
+                  data-confirm="Remove widget \u201c{{ w.title }}\u201d?"
                   class="form-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">&#x2715;</button>

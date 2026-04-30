@@ -7,6 +7,15 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    _FERNET_AVAILABLE = True
+except BaseException:
+    # Catches ImportError and pyo3 PanicException (broken Rust backend in some envs).
+    _FERNET_AVAILABLE = False
+    Fernet = None
+    InvalidToken = Exception
+
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -59,6 +68,77 @@ app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'f
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
 db.init_app(app)
+
+
+# ---------------------------------------------------------------------------
+# Connection-string encryption helpers (Fernet / symmetric AES-128-CBC+HMAC)
+# ---------------------------------------------------------------------------
+
+def _get_fernet():
+    """Return a Fernet instance keyed from CONNECTION_KEY env var, or None."""
+    if not _FERNET_AVAILABLE:
+        return None
+    key = os.environ.get('CONNECTION_KEY', '').strip()
+    if not key:
+        return None
+    try:
+        return Fernet(key.encode())
+    except Exception:
+        logger.warning('CONNECTION_KEY is not a valid Fernet key — connection strings stored plaintext.')
+        return None
+
+
+def encrypt_connection_string(value: str) -> str:
+    """Encrypt a connection string if a key is configured; otherwise return as-is."""
+    if not value:
+        return value
+    f = _get_fernet()
+    if f is None:
+        return value
+    return f.encrypt(value.encode()).decode()
+
+
+def decrypt_connection_string(value: str) -> str:
+    """Decrypt a connection string; fall back to plaintext for legacy unencrypted values."""
+    if not value:
+        return value
+    f = _get_fernet()
+    if f is None:
+        return value
+    try:
+        return f.decrypt(value.encode()).decode()
+    except Exception:
+        return value  # legacy plaintext value — return unchanged
+
+
+# ---------------------------------------------------------------------------
+# Pagination helper
+# ---------------------------------------------------------------------------
+
+def _page_range(current: int, total: int, window: int = 2):
+    """Return an ordered list of page numbers with None as ellipsis sentinel.
+
+    Always includes page 1, the last page, and `window` pages on each side of
+    current.  Gaps become None so templates render '…'.
+    """
+    if total <= 1:
+        return [1]
+    pages: set = {1, total}
+    for p in range(max(1, current - window), min(total, current + window) + 1):
+        pages.add(p)
+    result = sorted(pages)
+    out: list = []
+    prev = 0
+    for p in result:
+        if p - prev > 1:
+            out.append(None)
+        out.append(p)
+        prev = p
+    return out
+
+
+app.jinja_env.globals['page_range'] = _page_range
+
 
 PER_PAGE = 20           # records per page for list views
 MAX_PAGE = 10000        # upper bound to prevent DoS via absurdly large page numbers
@@ -312,7 +392,7 @@ def register():
             error = 'Email already registered.'
         if error:
             flash(error, 'danger')
-            return render_template('register.html')
+            return render_template('register.html', username=username, email=email)
         user = User(username=username, email=email or None)
         user.set_password(password)
         db.session.add(user)
@@ -516,7 +596,7 @@ def new_data_source():
         source = DataSource(
             name=name,
             data_type=data_type,
-            connection_string=connection_string or None,
+            connection_string=encrypt_connection_string(connection_string) or None,
             user_id=user.id,
         )
         db.session.add(source)
@@ -856,8 +936,8 @@ def api_kpis():
 @login_required
 @limiter.limit('10 per minute; 60 per hour')
 def api_export_sales():
-    """Export all sales as CSV (streamed, no full table load into memory)."""
-    rows = db.session.execute(
+    """Export all sales as CSV — streamed in 500-row batches to avoid loading the full table."""
+    query = (
         db.select(
             Sale.id, Customer.name.label('customer'), Product.name.label('product'),
             Product.category, Sale.quantity, Sale.total_amount, Sale.sale_date,
@@ -865,18 +945,25 @@ def api_export_sales():
         .join(Customer, Sale.customer_id == Customer.id)
         .join(Product, Sale.product_id == Product.id)
         .order_by(Sale.sale_date.desc())
-    ).all()
+    )
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(['id', 'customer', 'product', 'category', 'quantity', 'total_amount', 'sale_date'])
-    for r in rows:
-        writer.writerow([r.id, r.customer, r.product, r.category, r.quantity,
-                         float(r.total_amount), r.sale_date.strftime('%Y-%m-%d %H:%M:%S')])
+    def generate():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['id', 'customer', 'product', 'category', 'quantity', 'total_amount', 'sale_date'])
+        yield buf.getvalue()
+        for r in db.session.execute(query).yield_per(500):
+            buf.seek(0)
+            buf.truncate()
+            writer.writerow([
+                r.id, r.customer, r.product, r.category, r.quantity,
+                float(r.total_amount), r.sale_date.strftime('%Y-%m-%d %H:%M:%S'),
+            ])
+            yield buf.getvalue()
 
     filename = f'sales_export_{datetime.now(timezone.utc).strftime("%Y%m%d")}.csv'
     return Response(
-        buf.getvalue(),
+        generate(),
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )

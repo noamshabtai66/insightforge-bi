@@ -23,7 +23,7 @@
           <div class="item-actions">
             <a href="{{ url_for('view_report', report_id=r.id) }}" class="btn btn-sm btn-secondary">Open</a>
             <form method="POST" action="{{ url_for('delete_report', report_id=r.id) }}"
-                  onsubmit="return confirm('Delete this report?')" class="form-inline">
+                  data-confirm="Delete report &quot;{{ r.name }}&quot;?" class="form-inline">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-sm btn-danger">Delete</button>
             </form>
@@ -39,8 +39,10 @@
       {% else %}
         <span class="disabled">&laquo;</span>
       {% endif %}
-      {% for p in range(1, total_pages + 1) %}
-        {% if p == page %}
+      {% for p in page_range(page, total_pages) %}
+        {% if p is none %}
+          <span class="disabled">&hellip;</span>
+        {% elif p == page %}
           <span class="current">{{ p }}</span>
         {% else %}
           <a href="{{ url_for('reports', page=p) }}">{{ p }}</a>

@@ -35,6 +35,15 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => dismissAlert(alert), 5000);
   });
 
+  // Intercept forms with data-confirm attribute — CSP-safe replacement for onsubmit confirm().
+  document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      if (!window.confirm(form.dataset.confirm)) {
+        e.preventDefault();
+      }
+    });
+  });
+
   // Mobile hamburger nav toggle
   const hamburger = document.getElementById('nav-hamburger');
   const navLinks = document.getElementById('nav-links');

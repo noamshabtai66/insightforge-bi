@@ -207,6 +207,7 @@ a:hover { text-decoration: underline; }
 .kpi-purple { background: rgba(168,85,247,0.15); }
 .kpi-orange { background: rgba(245,158,11,0.15); }
 
+.kpi-body  { flex: 1; min-width: 0; }
 .kpi-value { font-size: 22px; font-weight: 700; line-height: 1.2; }
 .kpi-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 

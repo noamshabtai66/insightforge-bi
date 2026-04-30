@@ -31,7 +31,7 @@
             <td class="text-muted text-sm">{{ s.created_at.strftime('%b %d, %Y') }}</td>
             <td>
               <form method="POST" action="{{ url_for('delete_data_source', source_id=s.id) }}"
-                    onsubmit="return confirm('Delete this data source?')" class="form-inline">
+                    data-confirm="Delete data source &quot;{{ s.name }}&quot;?" class="form-inline">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
               </form>
@@ -48,8 +48,10 @@
       {% else %}
         <span class="disabled">&laquo;</span>
       {% endif %}
-      {% for p in range(1, total_pages + 1) %}
-        {% if p == page %}
+      {% for p in page_range(page, total_pages) %}
+        {% if p is none %}
+          <span class="disabled">&hellip;</span>
+        {% elif p == page %}
           <span class="current">{{ p }}</span>
         {% else %}
           <a href="{{ url_for('data_sources', page=p) }}">{{ p }}</a>
