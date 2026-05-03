@@ -3,6 +3,7 @@ import io
 import json
 import os
 import logging
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -24,8 +25,6 @@ try:
     load_dotenv()
 except ImportError:
     pass
-
-import re
 
 from flask import (
     Flask, redirect, url_for, session, request,
@@ -109,6 +108,21 @@ def decrypt_connection_string(value: str) -> str:
         return f.decrypt(value.encode()).decode()
     except Exception:
         return value  # legacy plaintext value — return unchanged
+
+
+# ---------------------------------------------------------------------------
+# DB-agnostic helpers
+# ---------------------------------------------------------------------------
+
+def _month_trunc(col):
+    """Return a SQL expression truncating a datetime column to 'YYYY-MM'.
+
+    Uses func.strftime for SQLite and func.to_char for PostgreSQL so the
+    sales-overview query works on both engines without code changes.
+    """
+    if db.engine.dialect.name == 'postgresql':
+        return func.to_char(col, 'YYYY-MM')
+    return func.strftime('%Y-%m', col)
 
 
 # ---------------------------------------------------------------------------
@@ -497,13 +511,13 @@ def new_dashboard():
         description = request.form.get('description', '').strip()
         if not name:
             flash('Dashboard name is required.', 'danger')
-            return render_template('dashboard_form.html', user=user)
+            return render_template('dashboard_form.html', user=user, name=name, description=description)
         if len(name) > 120:
             flash('Name must be 120 characters or fewer.', 'danger')
-            return render_template('dashboard_form.html', user=user)
+            return render_template('dashboard_form.html', user=user, name=name, description=description)
         if len(description) > 1000:
             flash('Description must be 1000 characters or fewer.', 'danger')
-            return render_template('dashboard_form.html', user=user)
+            return render_template('dashboard_form.html', user=user, name=name, description=description)
         dashboard = Dashboard(name=name, description=description, user_id=user.id)
         db.session.add(dashboard)
         db.session.commit()
@@ -586,13 +600,13 @@ def new_data_source():
         connection_string = request.form.get('connection_string', '').strip()
         if not name or not data_type:
             flash('Name and type are required.', 'danger')
-            return render_template('data_source_form.html', user=user)
+            return render_template('data_source_form.html', user=user, name=name, data_type=data_type)
         if len(name) > 120:
             flash('Name must be 120 characters or fewer.', 'danger')
-            return render_template('data_source_form.html', user=user)
+            return render_template('data_source_form.html', user=user, name=name, data_type=data_type)
         if data_type not in ALLOWED_TYPES:
             flash('Invalid data source type.', 'danger')
-            return render_template('data_source_form.html', user=user)
+            return render_template('data_source_form.html', user=user, name=name, data_type=data_type)
         source = DataSource(
             name=name,
             data_type=data_type,
@@ -653,13 +667,13 @@ def new_report():
         description = request.form.get('description', '').strip()
         if not name:
             flash('Report name is required.', 'danger')
-            return render_template('report_form.html', user=user)
+            return render_template('report_form.html', user=user, name=name, description=description)
         if len(name) > 120:
             flash('Name must be 120 characters or fewer.', 'danger')
-            return render_template('report_form.html', user=user)
+            return render_template('report_form.html', user=user, name=name, description=description)
         if len(description) > 1000:
             flash('Description must be 1000 characters or fewer.', 'danger')
-            return render_template('report_form.html', user=user)
+            return render_template('report_form.html', user=user, name=name, description=description)
         report = Report(name=name, description=description, user_id=user.id)
         db.session.add(report)
         db.session.commit()
@@ -709,6 +723,7 @@ WIDGET_DATA_SOURCES = {
 
 @app.route('/dashboards/<int:dashboard_id>/widgets/new', methods=['POST'])
 @login_required
+@limiter.limit('30 per minute; 200 per hour')
 def new_widget(dashboard_id):
     user = current_user()
     dashboard = db.first_or_404(
@@ -793,15 +808,16 @@ def api_sales_overview():
     replace with func.to_char(Sale.sale_date, 'YYYY-MM').
     """
     twelve_months_ago = datetime.now(timezone.utc) - timedelta(days=365)
+    month_col = _month_trunc(Sale.sale_date)
     rows = db.session.execute(
         db.select(
-            func.strftime('%Y-%m', Sale.sale_date).label('month'),
+            month_col.label('month'),
             func.sum(Sale.total_amount).label('revenue'),
             func.count(Sale.id).label('count'),
         )
         .where(Sale.sale_date >= twelve_months_ago)
-        .group_by(func.strftime('%Y-%m', Sale.sale_date))
-        .order_by(func.strftime('%Y-%m', Sale.sale_date))
+        .group_by(month_col)
+        .order_by(month_col)
     ).all()
     return jsonify({
         'labels': [r.month for r in rows],
